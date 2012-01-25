@@ -1,50 +1,38 @@
+{-# LANGUAGE TypeFamilies #-}
+
 module Test where
 
 import Data.Accessor
+import ErrVal
 
-type ErrVal = Either String
-
-data Widget = Widget
-
-data UIWidget a = UIWidget {
-    ui_widget :: Widget,
+data UIWidget tk a = UIWidget {
+    ui_widget :: (UIW tk),
     ui_set :: a -> IO (),
     ui_get :: IO (ErrVal a)
 }
 
-type UI a = Widget -> IO (UIWidget a)
+type UI tk a = (UICC tk) -> IO (UIWidget tk a)
 
-stringField :: UI String
-stringField = undefined
+class UITK tk where
+    data UIW tk :: *
+    data UICC tk :: *
+    data Field tk :: * -> *
 
-stringBasedField :: (String -> ErrVal a) -> (a -> String) -> UI a
+    stringField :: UI tk String
+    struct :: a -> [Field tk a] -> UI tk a
+    union :: a -> [Field tk a] -> UI tk a
+    field :: String -> Accessor a f -> UI tk f -> Field tk a
+
+stringBasedField :: (UITK tk) => (String -> ErrVal a) -> (a -> String) -> UI tk a
 stringBasedField fromString toString ctx = do
     uiString <- stringField ctx
     return uiString {
         ui_set=(ui_set uiString).toString,
-        ui_get=do
-           s <- ui_get uiString
-           case s of
-               (Left s) -> return (Left s)
-               (Right s) -> return (fromString s)
+        ui_get=fmap (errval fromString eErr) (ui_get uiString)
     }
 
-intField :: UI Int
+intField :: (UITK tk) => UI tk Int
 intField = undefined
-
-data Record a = Record
-
-data RecordField a f = RecordField {
-    rt_name :: String,
-    rf_access :: Accessor a f,
-    rf_ui :: UI f
-    }
-
-record :: a -> Record a
-record = undefined
-
-field :: Record a -> RecordField a f -> Record a
-field = undefined
 
 data Test = Test {
     t_v1_ :: String,
@@ -58,8 +46,9 @@ t_v1 = undefined
 t_v2 = undefined
 t_v3 = undefined
 
-
-ui = record (Test "" 0 0)
-     `field`  (RecordField "v1" t_v1 stringField)
-     `field`  (RecordField "v2" t_v2 intField)
-     `field`  (RecordField "v3" t_v2 intField)
+ui :: (UITK tk) => UI tk Test
+ui = struct (Test "" 0 0) [
+      field "v1" t_v1 stringField,
+      field "v2" t_v2 intField,
+      field "v3" t_v2 intField
+    ]
