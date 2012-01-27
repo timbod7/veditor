@@ -2,53 +2,47 @@
 
 module Test where
 
-import Data.Accessor
+import Graphics.UI.Gtk
+
+import UI
+import GTK
 import ErrVal
 
-data UIWidget tk a = UIWidget {
-    ui_widget :: (UIW tk),
-    ui_set :: a -> IO (),
-    ui_get :: IO (ErrVal a)
-}
-
-type UI tk a = (UICC tk) -> IO (UIWidget tk a)
-
-class UITK tk where
-    data UIW tk :: *
-    data UICC tk :: *
-    data Field tk :: * -> *
-
-    stringField :: UI tk String
-    struct :: a -> [Field tk a] -> UI tk a
-    union :: a -> [Field tk a] -> UI tk a
-    field :: String -> Accessor a f -> UI tk f -> Field tk a
-
-stringBasedField :: (UITK tk) => (String -> ErrVal a) -> (a -> String) -> UI tk a
-stringBasedField fromString toString ctx = do
-    uiString <- stringField ctx
-    return uiString {
-        ui_set=(ui_set uiString).toString,
-        ui_get=fmap (errval fromString eErr) (ui_get uiString)
-    }
-
-intField :: (UITK tk) => UI tk Int
-intField = undefined
-
 data Test = Test {
-    t_v1_ :: String,
-    t_v2_ :: Int,
-    t_v3_ :: Int
-}
+    t_v1 :: String,
+    t_v2 :: Int,
+    t_v3 :: Int
+} deriving (Show)
 
-t_v1 :: Accessor Test String
-t_v2, t_v3 :: Accessor Test Int
-t_v1 = undefined
-t_v2 = undefined
-t_v3 = undefined
-
-ui :: (UITK tk) => UI tk Test
-ui = struct (Test "" 0 0) [
-      field "v1" t_v1 stringField,
-      field "v2" t_v2 intField,
-      field "v3" t_v2 intField
+uiTest :: (UITK tk) => UI tk Test
+uiTest = struct (Test "" 0 0) [
+      field "v1" (t_v1,\v a->a{t_v1=v}) stringField,
+      field "v2" (t_v2,\v a->a{t_v2=v}) intField,
+      field "v3" (t_v3,\v a->a{t_v3=v}) intField
     ]
+
+main :: IO ()
+main = do
+  initGUI
+  window <- windowNew
+  onDestroy window mainQuit
+  set window [ containerBorderWidth := 10, windowTitle := "Hello World" ]
+  
+  ui <- uiNew uiTest
+
+  button <- buttonNew
+  set button [ buttonLabel := "Print" ]
+  onClicked button $ do
+      ea <- ui_get ui
+      errval (\v -> print v)
+             (\err -> putStrLn ("ERROR: " ++ err))
+             ea
+
+  table <- tableNew 2 2 False
+  tableAttachDefaults table (ui_widget ui) 0 2 0 1
+  tableAttachDefaults table button 1 2 1 2
+
+  set window [ containerChild := table ]
+
+  widgetShowAll window
+  mainGUI
