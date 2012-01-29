@@ -16,9 +16,9 @@ data Test = Test {
 
 uiTest :: (UITK tk) => UI tk Test
 uiTest = struct (Test "" 0 0) [
-      field "v1" (t_v1,\v a->a{t_v1=v}) stringField,
-      field "v2" (t_v2,\v a->a{t_v2=v}) intField,
-      field "v3" (t_v3,\v a->a{t_v3=v}) intField
+      field "v1" (t_v1,\v a->a{t_v1=v}) stringEntry,
+      field "v2" (t_v2,\v a->a{t_v2=v}) readEntry,
+      field "v3" (t_v3,\v a->a{t_v3=v}) readEntry
     ]
 
 main :: IO ()

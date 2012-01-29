@@ -16,8 +16,7 @@ data GTKWidget a = GTKWidget {
     ui_widget :: Widget,
     ui_set :: a -> IO (),
     ui_get :: IO (ErrVal a),
-    ui_reset :: IO (),
-    ui_indicateValid :: Bool -> IO ()
+    ui_reset :: IO ()
 }
 
 data GTKField a =  GTKField {
@@ -35,17 +34,22 @@ instance UITK GTK where
     data UI GTK a = UIGTK (GTKCTX -> IO (GTKWidget a))
     data Field GTK a = UIField (GTKCTX -> IO (GTKField a))
 
-    stringField = UIGTK $ \ctx -> do
+    entry fromString toString = UIGTK $ \ctx -> do
         e <- entryNew
+        e `on` editableChanged $ setBackground e
+        setBackground e
         return GTKWidget {
            ui_widget = toWidget e,
-           ui_set = entrySetText e,
-           ui_get = fmap eVal (entryGetText e),
-           ui_reset = entrySetText e "",
-           ui_indicateValid = \v ->
-               if v then widgetModifyBase e StateNormal invalidEntryBackground
-                    else widgetModifyBase e StateNormal validEntryBackground
+           ui_set = entrySetText e.toString,
+           ui_get = fmap fromString (entryGetText e),
+           ui_reset = entrySetText e ""
         } 
+      where
+        setBackground e = do
+            s <-entryGetText e
+            errval (\_ -> setOK e) (\_ -> setInvalid e) (fromString s)
+        setOK e = widgetModifyBase e StateNormal validEntryBackground
+        setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
     struct defv fields = UIGTK $ \ctx -> do
         table <- tableNew (length fields) 2 False
@@ -58,8 +62,7 @@ instance UITK GTK where
             ui_widget = toWidget table,
             ui_set = setf,
             ui_get = getf,
-            ui_reset = resetf,
-            ui_indicateValid = (\v -> return ())
+            ui_reset = resetf
         }
       where
         addField ctx table (i,setf,getf,resetf) (UIField ff) = do

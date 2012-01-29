@@ -8,8 +8,8 @@ class UITK tk where
     data UI tk :: * -> *
     data Field tk :: * -> *
 
-    stringField :: UI tk String
-
+    entry :: (String -> ErrVal a) -> (a -> String) -> UI tk a
+                
     list :: UI tk a -> UI tk [a]
 
     struct :: a -> [Field tk a] -> UI tk a
@@ -20,15 +20,15 @@ class UITK tk where
     -- two conversion functions.
     mapUI :: (a -> ErrVal b) -> (b -> a) -> UI tk a -> UI tk b
     
+stringEntry :: (UITK tk) => UI tk String
+stringEntry = entry eVal id
+
 -- | A UI for any type implemented Read and Show. The underlying
--- UI is a string field.
-readShowField :: (UITK tk, Read a, Show a) => UI tk a
-readShowField = mapUI fromString show stringField
+-- UI is a string entry.
+readEntry :: (UITK tk, Read a, Show a) => UI tk a
+readEntry = entry fromString show 
   where
     fromString s = case reads s of
         [(a,"")] -> eVal a
         _ -> eErr ("Read failed")
-
-intField :: (UITK tk) => UI tk Int
-intField = readShowField
 
