@@ -48,7 +48,7 @@ instance UITK GTK where
         setBackground e = do
             s <-entryGetText e
             errval (\_ -> setOK e) (\_ -> setInvalid e) (fromString s)
-        setOK e = widgetModifyBase e StateNormal validEntryBackground
+        setOK e = widgetRestoreBase e StateNormal
         setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
     struct defv fields = UIGTK $ \ctx -> do
