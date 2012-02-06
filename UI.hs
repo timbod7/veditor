@@ -4,25 +4,46 @@ module UI where
 
 import ErrVal
 
+
+-- Product types
+-- (ie for records and structure)
+
+data HNil = HNil
+
+data HAnd a b = a :&: b
+infixr 9 :&:
+
+class HProduct l
+instance HProduct HNil
+instance HProduct l => HProduct (HAnd e l)
+
+-- Sum types
+-- (ie for discriminated unions)
+
+data HOr a b = HVal a
+             | HSkp b
+
+class HSum l
+instance HSum HNil
+instance HSum l => HSum (HOr e l)
+
+
 class UITK tk where
     data UI tk :: * -> *
-    data Field tk :: * -> *
-    data Case tk :: * -> *
 
     entry :: (String -> ErrVal a) -> (a -> String) -> UI tk a
-                
+    label :: String -> UI tk a -> UI tk a
+
+    nilUI ::  UI tk HNil             
+    andUI :: (HProduct l) => UI tk a -> UI tk l -> UI tk (HAnd a l)
+    orUI  :: (HSum l) => UI tk a -> UI tk l -> UI tk (HOr a l)
+
     list :: UI tk a -> UI tk [a]
-
-    struct :: a -> [Field tk a] -> UI tk a
-    field :: String -> (a->f,f->a->a) -> UI tk f -> Field tk a
-
-    union :: a -> [Case tk a] -> UI tk a
-    ucase :: String -> (a->Maybe f,f->a) -> UI tk f -> Case tk a
 
     -- | Convert a UI over a type a, to a UI over a type b, given
     -- two conversion functions.
     mapUI :: (a -> ErrVal b) -> (b -> a) -> UI tk a -> UI tk b
-    
+
 stringEntry :: (UITK tk) => UI tk String
 stringEntry = entry eVal id
 
@@ -33,4 +54,7 @@ readEntry = entry fromString show
     fromString s = case reads s of
         [(a,"")] -> eVal a
         _ -> eErr ("Read failed")
+
+readInt :: (UITK tk) => UI tk Int
+readInt = readEntry
 

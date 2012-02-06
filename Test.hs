@@ -1,37 +1,11 @@
-{-# LANGUAGE TypeFamilies #-}
-
-module Test where
+module RunTests3 where
 
 import Graphics.UI.Gtk
 
 import UI
 import GTK
+import UIExamples
 import ErrVal
-
-data StructTest = StructTest {
-    t_v1 :: String,
-    t_v2 :: Int,
-    t_v3 :: Int
-} deriving (Show)
-
-structTest :: (UITK tk) => UI tk StructTest
-structTest = struct (StructTest "" 0 0) [
-      field "v1" (t_v1,\v a->a{t_v1=v}) stringEntry,
-      field "v2" (t_v2,\v a->a{t_v2=v}) readEntry,
-      field "v3" (t_v3,\v a->a{t_v3=v}) readEntry
-    ]
-
-data UnionTest = UT_V1 String
-               | UT_V2 Int
-               | UT_V3 StructTest
-    deriving (Show)
-
-unionTest :: (UITK tk) => UI tk UnionTest
-unionTest = union (UT_V1 "") [
-      ucase "v1" (\v -> case v of { (UT_V1 v) -> Just v; _ -> Nothing },UT_V1) stringEntry,
-      ucase "v2" (\v -> case v of { (UT_V2 v) -> Just v; _ -> Nothing },UT_V2) readEntry,
-      ucase "v3" (\v -> case v of { (UT_V3 v) -> Just v; _ -> Nothing },UT_V3) structTest
-    ]
 
 testui :: (Show a) => UI GTK a -> IO ()
 testui uidef =  do
@@ -66,4 +40,5 @@ testui uidef =  do
   mainGUI
 
 test1 = testui structTest
-test2 = testui unionTest
+test2 = testui structTest2
+test3 = testui unionTest

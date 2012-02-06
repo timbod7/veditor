@@ -10,7 +10,11 @@ import UI
 import ErrVal
 
 data GTK = GTK
-data GTKCTX = GTKCTX
+
+data CTXState = CS_NORMAL
+              | CS_AND {cs_table :: Table, cs_row :: Int}
+
+data GTKCTX = GTKCTX {cs_state :: CTXState}
 
 data GTKWidget a = GTKWidget {
     ui_widget :: Widget,
@@ -19,27 +23,16 @@ data GTKWidget a = GTKWidget {
     ui_reset :: IO ()
 }
 
-data GTKField a =  GTKField {
-    gtkf_label :: String,
-    gtkf_widget :: Widget,
-    gtkf_setf  :: a -> IO (),
-    gtkf_getf :: IO (ErrVal (a->a)),
-    gtkf_reset :: IO ()
-    }
-
-data GTKCase a = GTKCase {
-    }
-
-
 invalidEntryBackground = Color 65535 50000 50000
-validEntryBackground = Color 65535 65535 65535
 
 instance UITK GTK where
-    data UI GTK a = UIGTK (GTKCTX -> IO (GTKWidget a))
-    data Field GTK a = UIField (GTKCTX -> IO (GTKField a))
-    data Case GTK a = UICase {uic_label::String, uic_mkui :: GTKCTX -> IO (GTKCase a)}
 
-    entry fromString toString = UIGTK $ \ctx -> do
+    data UI GTK a = UIGTK {
+        ui_label :: String,
+        ui_create :: (GTKCTX -> IO (GTKWidget a))
+    }
+
+    entry fromString toString = UIGTK "" $ \ctx -> do
         e <- entryNew
         e `on` editableChanged $ setBackground e
         setBackground e
@@ -56,73 +49,54 @@ instance UITK GTK where
         setOK e = widgetRestoreBase e StateNormal
         setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
-    struct defv fields = UIGTK $ \ctx -> do
-        table <- tableNew (length fields) 2 False
-        let setf0 a = return ()
-        let getf0 = return (eVal defv)
-        let resetf0 = return ()
-        (_,setf,getf,resetf) <- foldM (addField ctx table)
-                                      (0,setf0,getf0,resetf0) fields
+    label s ui = ui{ui_label=s}
+
+    nilUI = UIGTK "" $ \ctx -> do
+        w <- case cs_state ctx of
+            (CS_AND table i) -> do
+                return (toWidget table)
+            CS_NORMAL -> do
+                label <- labelNew Nothing
+                return (toWidget label)
         return GTKWidget {
-            ui_widget = toWidget table,
-            ui_set = setf,
-            ui_get = getf,
-            ui_reset = resetf
-        }
-      where
-        addField ctx table (i,setf,getf,resetf) (UIField ff) = do
-            f <- ff ctx
-            label <- labelNew (Just (gtkf_label f))
-            tableAttachDefaults table label 0 1 i (i+1) 
-            tableAttachDefaults table (gtkf_widget f) 1 2 i (i+1)
-            return (i+1,setf' f,getf' f, resetf' f)
-          where
-            setf' f a = gtkf_setf f a >> setf a
-            getf' f = do
-                ea <- getf
-                egf <- gtkf_getf f
-                return (egf <*> ea)
-            resetf' f = resetf >> gtkf_reset f
+            ui_widget = w,
+            ui_set = const $ return (),
+            ui_get = return (eVal HNil),
+            ui_reset = return ()
+        } 
 
-    field label (rf,uf) (UIGTK uif) = UIField $ \ ctx -> do
-        ui <- uif ctx
-        return GTKField {
-            gtkf_label=label,
-            gtkf_widget=ui_widget ui,
-            gtkf_setf=ui_set ui.rf,
-            gtkf_getf=do
-                ef <- ui_get ui
-                return (uf <$> ef),
-            gtkf_reset=ui_reset ui                       
-        }
+    andUI ui uis = UIGTK "" $ \ctx -> do
+        (table,i) <- case cs_state ctx of
+            (CS_AND table i) -> do
+                tableResize table (i + 1) 2
+                return (table,i+1)
+            CS_NORMAL -> do
+                table <- tableNew 1 2 False
+                return (table,0)
 
-    union defv fields = UIGTK $ \ctx -> do
-        table <- tableNew 2 1 False
-        combo <- comboBoxNewText
-        tableAttachDefaults table combo 0 1 0 1
-        let setf0 a = return ()
-        let getf0 = return (eVal defv)
-        let resetf0 = return ()
-        (setf,getf,resetf) <- foldM (addField ctx table combo) (setf0,getf0,resetf0) fields
+        -- create this field
+        label <- labelNew (Just (ui_label ui))
+        gw <- ui_create ui ctx{cs_state=CS_NORMAL}
+        tableAttachDefaults table label 0 1 i (i+1) 
+        tableAttachDefaults table (ui_widget gw) 1 2 i (i+1)
+
+        -- create the subsequent rows
+        gw2 <- ui_create uis ctx{cs_state=CS_AND table (i+1)}
+
         return GTKWidget {
-            ui_widget = toWidget table,
-            ui_set = setf,
-            ui_get = getf,
-            ui_reset = resetf
-        }
-      where
-        addField ctx table combo (setf,getf,resetf) uic = do
-            comboBoxAppendText combo (uic_label uic)
-            return (setf,getf,resetf)
+           ui_widget = toWidget table,
+           ui_set = \(a :&: b) -> ui_set gw a >> ui_set gw2 b,
+           ui_get = do
+               a <- ui_get gw
+               b <- ui_get gw2
+               return ((:&:) <$> a <*> b),
+           ui_reset = ui_reset gw >> ui_reset gw2
+        } 
 
-    ucase label (rf,uf) (UIGTK uif) = UICase label $ \ ctx -> do
-        ui <- uif ctx
-        return GTKCase {
-        }
-
+    orUI = undefined
     list = undefined
 
-    mapUI fab fba (UIGTK uia) = UIGTK mkui
+    mapUI fab fba (UIGTK label uia) = UIGTK label mkui
       where
         mkui ctx = do
             uiwa <- uia ctx
@@ -132,6 +106,5 @@ instance UITK GTK where
               fmap (errval fab eErr) (ui_get uiwa)
             }
 
-
 uiNew :: (UI GTK a) -> IO (GTKWidget a)
-uiNew (UIGTK uia) = uia GTKCTX
+uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL)
