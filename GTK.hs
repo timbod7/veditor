@@ -27,12 +27,17 @@ data GTKField a =  GTKField {
     gtkf_reset :: IO ()
     }
 
+data GTKCase a = GTKCase {
+    }
+
+
 invalidEntryBackground = Color 65535 50000 50000
 validEntryBackground = Color 65535 65535 65535
 
 instance UITK GTK where
     data UI GTK a = UIGTK (GTKCTX -> IO (GTKWidget a))
     data Field GTK a = UIField (GTKCTX -> IO (GTKField a))
+    data Case GTK a = UICase {uic_label::String, uic_mkui :: GTKCTX -> IO (GTKCase a)}
 
     entry fromString toString = UIGTK $ \ctx -> do
         e <- entryNew
@@ -91,8 +96,31 @@ instance UITK GTK where
             gtkf_reset=ui_reset ui                       
         }
 
+    union defv fields = UIGTK $ \ctx -> do
+        table <- tableNew 2 1 False
+        combo <- comboBoxNewText
+        tableAttachDefaults table combo 0 1 0 1
+        let setf0 a = return ()
+        let getf0 = return (eVal defv)
+        let resetf0 = return ()
+        (setf,getf,resetf) <- foldM (addField ctx table combo) (setf0,getf0,resetf0) fields
+        return GTKWidget {
+            ui_widget = toWidget table,
+            ui_set = setf,
+            ui_get = getf,
+            ui_reset = resetf
+        }
+      where
+        addField ctx table combo (setf,getf,resetf) uic = do
+            comboBoxAppendText combo (uic_label uic)
+            return (setf,getf,resetf)
+
+    ucase label (rf,uf) (UIGTK uif) = UICase label $ \ ctx -> do
+        ui <- uif ctx
+        return GTKCase {
+        }
+
     list = undefined
-    union = undefined
 
     mapUI fab fba (UIGTK uia) = UIGTK mkui
       where
