@@ -1,6 +1,10 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module GTK where
+module GTK(
+    GTK,
+    GTKWidget(..),
+    uiNew,
+) where
 
 import Graphics.UI.Gtk
 import Control.Monad
@@ -23,8 +27,6 @@ data GTKWidget a = GTKWidget {
     ui_reset :: IO ()
 }
 
-invalidEntryBackground = Color 65535 50000 50000
-
 instance UITK GTK where
 
     data UI GTK a = UIGTK {
@@ -32,7 +34,30 @@ instance UITK GTK where
         ui_create :: (GTKCTX -> IO (GTKWidget a))
     }
 
-    entry fromString toString = UIGTK "" $ \ctx -> do
+    entry = gtkEntry
+    label s ui = ui{ui_label=s}
+    nilUI = gtkNilUI 
+    andUI = gtkAndUI
+    orUI = gtkOrUI
+    listUI = gtkListUI
+    mapUI = gtkMapUI
+
+
+gtkMapUI :: (a -> ErrVal b) -> (b -> a) -> UI GTK a -> UI GTK b
+gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
+      where
+        mkui ctx = do
+            uiwa <- uia ctx
+            return uiwa {
+              ui_set=(ui_set uiwa).fba,
+              ui_get=do
+              fmap (errval fab eErr) (ui_get uiwa)
+            }
+
+invalidEntryBackground = Color 65535 50000 50000
+
+gtkEntry :: (String -> ErrVal a) -> (a -> String) -> UI GTK a
+gtkEntry fromString toString = UIGTK "" $ \ctx -> do
         e <- entryNew
         e `on` editableChanged $ setBackground e
         setBackground e
@@ -49,23 +74,8 @@ instance UITK GTK where
         setOK e = widgetRestoreBase e StateNormal
         setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
-    label s ui = ui{ui_label=s}
-
-    nilUI = UIGTK "" $ \ctx -> do
-        w <- case cs_state ctx of
-            (CS_AND table i) -> do
-                return (toWidget table)
-            CS_NORMAL -> do
-                label <- labelNew Nothing
-                return (toWidget label)
-        return GTKWidget {
-            ui_widget = w,
-            ui_set = const $ return (),
-            ui_get = return (eVal HNil),
-            ui_reset = return ()
-        } 
-
-    andUI ui uis = UIGTK "" $ \ctx -> do
+gtkAndUI :: (HProduct l) => UI GTK a -> UI GTK l -> UI GTK (HAnd a l)
+gtkAndUI ui uis = UIGTK "" $ \ctx -> do
         (table,i) <- case cs_state ctx of
             (CS_AND table i) -> do
                 tableResize table (i + 1) 2
@@ -93,18 +103,26 @@ instance UITK GTK where
            ui_reset = ui_reset gw >> ui_reset gw2
         } 
 
-    orUI = undefined
-    list = undefined
+gtkNilUI :: UI GTK HNil
+gtkNilUI = UIGTK "" $ \ctx -> do
+        w <- case cs_state ctx of
+            (CS_AND table i) -> do
+                return (toWidget table)
+            CS_NORMAL -> do
+                label <- labelNew Nothing
+                return (toWidget label)
+        return GTKWidget {
+            ui_widget = w,
+            ui_set = const $ return (),
+            ui_get = return (eVal HNil),
+            ui_reset = return ()
+        } 
 
-    mapUI fab fba (UIGTK label uia) = UIGTK label mkui
-      where
-        mkui ctx = do
-            uiwa <- uia ctx
-            return uiwa {
-              ui_set=(ui_set uiwa).fba,
-              ui_get=do
-              fmap (errval fab eErr) (ui_get uiwa)
-            }
+gtkOrUI :: (HSum l) => UI GTK a -> UI GTK l -> UI GTK (HOr a l)
+gtkOrUI = undefined
+
+gtkListUI :: UI GTK a -> UI GTK [a]
+gtkListUI = undefined
 
 uiNew :: (UI GTK a) -> IO (GTKWidget a)
 uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL)
