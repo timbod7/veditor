@@ -27,7 +27,6 @@ class HSum l
 instance HSum HNil
 instance HSum l => HSum (HOr e l)
 
-
 class UITK tk where
     data UI tk :: * -> *
 

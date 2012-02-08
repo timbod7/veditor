@@ -1,4 +1,4 @@
-module RunTests3 where
+module Test where
 
 import Graphics.UI.Gtk
 

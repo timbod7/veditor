@@ -9,14 +9,25 @@ module GTK(
 import Graphics.UI.Gtk
 import Control.Monad
 import Control.Applicative
+import Data.IORef
+import qualified Data.Map as Map
 
 import UI
 import ErrVal
 
 data GTK = GTK
 
+data UnionState = UnionState {
+    us_table :: Table,
+    us_combo :: ComboBox,
+    us_current :: IORef (Maybe (Int,Widget)),
+    us_callback :: IORef (Map.Map Int (IO ())),
+    us_i :: Int
+}
+
 data CTXState = CS_NORMAL
-              | CS_AND {cs_table :: Table, cs_row :: Int}
+              | CS_AND Table Int
+              | CS_OR UnionState
 
 data GTKCTX = GTKCTX {cs_state :: CTXState}
 
@@ -108,6 +119,8 @@ gtkNilUI = UIGTK "" $ \ctx -> do
         w <- case cs_state ctx of
             (CS_AND table i) -> do
                 return (toWidget table)
+            (CS_OR us) -> do
+                return (toWidget (us_table us))
             CS_NORMAL -> do
                 label <- labelNew Nothing
                 return (toWidget label)
@@ -119,7 +132,112 @@ gtkNilUI = UIGTK "" $ \ctx -> do
         } 
 
 gtkOrUI :: (HSum l) => UI GTK a -> UI GTK l -> UI GTK (HOr a l)
-gtkOrUI = undefined
+gtkOrUI ui uis = UIGTK "" $ \ctx -> do
+        us <- case cs_state ctx of
+            (CS_OR us) -> return us
+            CS_NORMAL -> do
+                table <- tableNew 2 2 False
+                combo <- comboBoxNewText
+                cref <- newIORef Map.empty
+                on combo changed $ do
+                    i <- comboBoxGetActive combo
+                    cm <- readIORef cref
+                    case Map.lookup i cm of
+                        Nothing -> return ()
+                        (Just a) -> a
+                    return ()                           
+                tableAttachDefaults table combo 0 2 0 1
+
+                wref <- newIORef Nothing
+                return (UnionState table combo wref cref 0)
+
+        let (UnionState table combo wref cref i) = us
+
+        comboBoxAppendText combo (ui_label ui)
+
+        dgw <- delayIO (ui_create ui) ctx{cs_state=CS_NORMAL}
+
+        gw2 <- ui_create uis ctx{cs_state=CS_OR us{us_i=i+1}}
+
+        let showThisUI = do
+              gw <- delayGet dgw
+              mw <- readIORef wref
+              case mw of
+                Nothing -> do
+                    tableAttachDefaults table (ui_widget gw) 0 2 1 2
+                    widgetShowAll (ui_widget gw)
+                    writeIORef wref (Just (i,(ui_widget gw)))
+                (Just (oi,w)) | oi == i -> return ()
+                              | otherwise -> do
+                    containerRemove table w
+                    tableAttachDefaults table (ui_widget gw) 0 2 1 2
+                    widgetShowAll (ui_widget gw)
+                    writeIORef wref (Just (i,(ui_widget gw)))
+              return gw
+
+            set (HSkp a) = ui_set gw2 a
+            set (HVal a) = do
+              comboBoxSetActive combo i
+              gw <- showThisUI
+              ui_set gw a
+
+            get = do
+                i' <- comboBoxGetActive combo
+                if i' == i
+                  then do
+                    gw <- delayGet dgw
+                    a <- ui_get gw
+                    return (fmap HVal a)
+                  else do
+                    b <- ui_get gw2
+                    return (fmap HSkp b)
+
+            reset = do
+                when (i==0) $ do
+                    comboBoxSetActive combo i
+                pending <- delayPending dgw
+                when (not pending) $ do
+                    gw <- delayGet dgw
+                    ui_reset gw
+                ui_reset gw2
+
+        modifyIORef cref (Map.insert i (void showThisUI))
+
+        when (i==0) $ do
+            comboBoxSetActive combo i
+            void showThisUI
+
+        return GTKWidget {
+          ui_widget = toWidget table,
+          ui_set = set,
+          ui_get = get,
+          ui_reset = reset
+        } 
+
+data Delayed a = Delayed {
+      delayGet :: IO a,
+      delayPending :: IO Bool
+}
+
+delayIO :: (c -> IO a) -> c -> IO (Delayed a)
+delayIO f v = do
+    r <- newIORef Nothing
+    return (Delayed (get r) (pending r))
+  where
+    get r = do
+        ma <- readIORef r
+        case ma of
+          (Just a) -> return a
+          Nothing -> do
+            a <- f v
+            writeIORef r (Just a)
+            return a
+
+    pending r = do
+        ma <- readIORef r
+        case ma of
+          (Just a) -> return False
+          Nothing -> return True
 
 gtkListUI :: UI GTK a -> UI GTK [a]
 gtkListUI = undefined
