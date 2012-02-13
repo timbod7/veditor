@@ -4,6 +4,8 @@ module GTK(
     GTK,
     GTKWidget(..),
     uiNew,
+    modalDialogNew,
+    dialogOK, dialogReset, dialogCancel
 ) where
 
 import Graphics.UI.Gtk
@@ -93,13 +95,16 @@ gtkAndUI ui uis = UIGTK "" $ \ctx -> do
                 return (table,i+1)
             CS_NORMAL -> do
                 table <- tableNew 1 2 False
+                tableSetColSpacing table 0 10
                 return (table,0)
 
         -- create this field
         label <- labelNew (Just (ui_label ui))
+        miscSetAlignment label 1 0
         gw <- ui_create ui ctx{cs_state=CS_NORMAL}
-        tableAttachDefaults table label 0 1 i (i+1) 
-        tableAttachDefaults table (ui_widget gw) 1 2 i (i+1)
+        let toptions = [Expand,Shrink,Fill]
+        tableAttach table label 0 1 i (i+1) [] [] 0 0
+        tableAttach table (ui_widget gw) 1 2 i (i+1) toptions toptions 0 0
 
         -- create the subsequent rows
         gw2 <- ui_create uis ctx{cs_state=CS_AND table (i+1)}
@@ -136,7 +141,7 @@ gtkOrUI ui uis = UIGTK "" $ \ctx -> do
         us <- case cs_state ctx of
             (CS_OR us) -> return us
             CS_NORMAL -> do
-                table <- tableNew 2 2 False
+                table <- tableNew 1 2 False
                 combo <- comboBoxNewText
                 cref <- newIORef Map.empty
                 on combo changed $ do
@@ -145,8 +150,11 @@ gtkOrUI ui uis = UIGTK "" $ \ctx -> do
                     case Map.lookup i cm of
                         Nothing -> return ()
                         (Just a) -> a
-                    return ()                           
-                tableAttachDefaults table combo 0 2 0 1
+                    return ()
+
+                align <- alignmentNew 0 0 0 0
+                containerAdd align combo
+                tableAttachDefaults table align 0 1 0 1
 
                 wref <- newIORef Nothing
                 return (UnionState table combo wref cref 0)
@@ -164,7 +172,7 @@ gtkOrUI ui uis = UIGTK "" $ \ctx -> do
               mw <- readIORef wref
               case mw of
                 Nothing -> do
-                    tableAttachDefaults table (ui_widget gw) 0 2 1 2
+                    tableAttachDefaults table (ui_widget gw) 0 1 1 2
                     widgetShowAll (ui_widget gw)
                     writeIORef wref (Just (i,(ui_widget gw)))
                 (Just (oi,w)) | oi == i -> return ()
@@ -244,3 +252,64 @@ gtkListUI = undefined
 
 uiNew :: (UI GTK a) -> IO (GTKWidget a)
 uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL)
+
+type DialogButton a b = (String,GTKWidget a -> IO (Maybe b))
+modalDialogNew :: String -> GTKWidget a -> [DialogButton a b] -> IO (Dialog,IO b)
+modalDialogNew title gw buttons = do
+    dialog <- dialogNew
+    resultv <- newIORef undefined
+    set dialog [ windowTitle := title ]
+
+    -- Populate the upper area
+    vbox <- dialogGetUpper dialog
+    align <- alignmentNew 0 0 1 1
+    alignmentSetPadding align 10 10 10 10
+    containerAdd align (ui_widget gw)
+    
+    boxPackStart vbox align PackGrow 0
+    widgetShowAll vbox
+
+    -- Create the buttons in the action area
+    hbox <- dialogGetActionArea dialog
+    forM_ buttons $ \(label, action) -> do
+        b <- buttonNew
+        set b [buttonLabel:=label]
+        boxPackStart hbox b PackNatural 0
+        on b buttonActivated $ do
+            v <- action gw
+            case v of
+              Nothing -> return ()
+              (Just b) -> do
+                writeIORef resultv b
+                dialogResponse dialog ResponseOk
+        return ()
+    widgetShowAll hbox
+
+    return (dialog,run dialog resultv)
+ where
+    run dialog resultv = do
+        widgetShow dialog
+        r <- dialogRun dialog
+        v <- readIORef resultv
+        widgetHide dialog
+        return v
+        
+dialogOK, dialogReset, dialogCancel :: DialogButton a (Maybe a)
+dialogOK = ("OK",ok)
+  where
+    ok gw = do
+        ev <- ui_get gw
+        case ev of
+           (ErrVal (Left v)) -> return (Just (Just v))
+           (ErrVal (Right s)) -> return Nothing
+
+dialogReset = ("Reset",reset)
+  where
+    reset gw = do
+        ui_reset gw
+        return Nothing
+
+dialogCancel = ("Cancel",cancel)
+  where
+    cancel gw = do
+        return (Just (Nothing))
