@@ -1,5 +1,2 @@
-* Implement list types
-* Add support for default values
 * Add support for Enums
 * A pure text based implementation
-* Pressing Return in an entry in a dialog, acts like ok.

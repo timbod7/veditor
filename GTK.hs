@@ -342,8 +342,21 @@ modalDialogNew title ui buttons = do
     resultv <- newIORef undefined
     set dialog [ windowTitle := title ]
 
-    let ctx = GTKCTX CS_NORMAL (return ())
+    -- Not sure how to pass an activate action in the context to
+    -- create a widget when it needs to reference the widget being
+    -- created. Revert to mutation...
+    activatefv <- newIORef (return ())
+    let ctx = GTKCTX CS_NORMAL (readIORef activatefv >>= id)
     gw <- ui_create ui ctx
+
+    let activatef = do
+        ev <- ui_get gw
+        case ev of
+           (ErrVal (Right s)) -> return ()
+           (ErrVal (Left v)) -> do
+               writeIORef resultv (Just v)
+               dialogResponse dialog ResponseOk
+    writeIORef activatefv activatef
 
     -- Populate the upper area
     vbox <- dialogGetUpper dialog
