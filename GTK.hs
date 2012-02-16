@@ -5,7 +5,9 @@ module GTK(
     GTKWidget(..),
     uiNew,
     modalDialogNew,
-    dialogOK, dialogReset, dialogCancel
+    ModalDialog(..),
+    dialogOK, dialogReset, dialogCancel,
+    maybeM
 ) where
 
 import Graphics.UI.Gtk
@@ -31,7 +33,10 @@ data CTXState = CS_NORMAL
               | CS_AND Table Int
               | CS_OR UnionState
 
-data GTKCTX = GTKCTX {cs_state :: CTXState}
+data GTKCTX = GTKCTX {
+    cs_state :: CTXState,
+    cs_onActivate :: IO ()
+}
 
 data GTKWidget a = GTKWidget {
     ui_widget :: Widget,
@@ -54,6 +59,7 @@ instance UITK GTK where
     orUI = gtkOrUI
     listUI = gtkListUI
     mapUI = gtkMapUI
+    defaultUI = gtkDefaultUI
 
 
 gtkMapUI :: (a -> ErrVal b) -> (b -> a) -> UI GTK a -> UI GTK b
@@ -73,6 +79,7 @@ gtkEntry :: (String -> ErrVal a) -> (a -> String) -> UI GTK a
 gtkEntry fromString toString = UIGTK "" $ \ctx -> do
         e <- entryNew
         e `on` editableChanged $ setBackground e
+        e `on` entryActivate  $ cs_onActivate ctx
         setBackground e
         return GTKWidget {
            ui_widget = toWidget e,
@@ -163,7 +170,7 @@ gtkOrUI ui uis = UIGTK "" $ \ctx -> do
 
         comboBoxAppendText combo (ui_label ui)
 
-        dgw <- delayIO (ui_create ui) ctx{cs_state=CS_NORMAL}
+        dgw <- delayIO (ui_create ui ctx{cs_state=CS_NORMAL})
 
         gw2 <- ui_create uis ctx{cs_state=CS_OR us{us_i=i+1}}
 
@@ -227,8 +234,8 @@ data Delayed a = Delayed {
       delayPending :: IO Bool
 }
 
-delayIO :: (c -> IO a) -> c -> IO (Delayed a)
-delayIO f v = do
+delayIO :: IO a -> IO (Delayed a)
+delayIO f = do
     r <- newIORef Nothing
     return (Delayed (get r) (pending r))
   where
@@ -237,7 +244,7 @@ delayIO f v = do
         case ma of
           (Just a) -> return a
           Nothing -> do
-            a <- f v
+            a <- f
             writeIORef r (Just a)
             return a
 
@@ -247,18 +254,96 @@ delayIO f v = do
           (Just a) -> return False
           Nothing -> return True
 
-gtkListUI :: UI GTK a -> UI GTK [a]
-gtkListUI = undefined
+gtkListUI :: (a -> String) -> UI GTK a -> UI GTK [a]
+gtkListUI toString ui = UIGTK "" $ \ctx -> do
+    ls <- listStoreNew []
+    tree <- treeViewNewWithModel ls
+    col1 <- treeViewColumnNew
+
+    ddialog <- delayIO $ modalDialogNew "List Edit" ui
+                                        [dialogOK,dialogReset,dialogCancel]
+
+    renderer1 <- cellRendererTextNew
+    cellLayoutPackStart col1 renderer1 True
+    cellLayoutSetAttributes col1 renderer1 ls $ \a -> [cellText := toString a ]
+    treeViewSetHeadersVisible tree False
+    treeViewAppendColumn tree col1
+    treeViewSetReorderable tree True
+    on tree rowActivated $ \path column -> do
+        miter <- treeModelGetIter ls path
+        case miter of
+            Nothing -> return ()
+            Just (iter) -> do
+                let i = listStoreIterToIndex iter
+                v <- listStoreGetValue ls i
+                dialog <- delayGet ddialog
+                ui_set (md_gw dialog) v
+                mr <- md_run dialog
+                maybeM mr $ \v -> listStoreSetValue ls i v
+
+    addButton <- buttonNewFromStock stockAdd
+    on addButton buttonActivated $ do
+        dialog <- delayGet ddialog
+        mr <- md_run dialog
+        maybeM mr $ \v -> void $ listStoreAppend ls v
+
+    deleteButton <- buttonNewFromStock stockDelete
+    on deleteButton buttonActivated $ do
+        mi <- getListSelection tree
+        maybeM mi $ \i -> listStoreRemove ls i
+
+    duplicateButton <- buttonNew
+    set duplicateButton [buttonLabel:="Duplicate"]
+    on duplicateButton buttonActivated $ do
+        mi <- getListSelection tree
+        maybeM mi $ \i -> do
+            v <- listStoreGetValue ls i
+            listStoreInsert ls (i+1) v
+            treeViewSetCursor tree [i+1] Nothing
+
+    hbox <-hBoxNew False 5
+    vbox <- vBoxNew False 5
+    boxPackStart hbox tree PackGrow 0
+    boxPackStart hbox vbox PackNatural 0
+    boxPackStart vbox addButton PackNatural 0
+    boxPackStart vbox deleteButton PackNatural 0
+    boxPackStart vbox duplicateButton PackNatural 0
+                                            
+    return GTKWidget {
+          ui_widget = toWidget hbox,
+          ui_set = \vs -> do
+              listStoreClear ls
+              mapM_ (listStoreAppend ls) vs,
+          ui_get = fmap eVal (listStoreToList ls),
+          ui_reset = listStoreClear ls
+        } 
+
+gtkDefaultUI :: a -> UI GTK a -> UI GTK a
+gtkDefaultUI a ui = UIGTK (ui_label ui) $ \ctx -> do
+    gw <- ui_create ui ctx
+    return gw{ui_reset=ui_set gw a}
+
 
 uiNew :: (UI GTK a) -> IO (GTKWidget a)
-uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL)
+uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))
 
-type DialogButton a b = (String,GTKWidget a -> IO (Maybe b))
-modalDialogNew :: String -> GTKWidget a -> [DialogButton a b] -> IO (Dialog,IO b)
-modalDialogNew title gw buttons = do
+type DialogResult a = Maybe a
+type DialogButton a = (String,GTKWidget a -> IO (Maybe (DialogResult a)))
+
+data ModalDialog a = ModalDialog {
+    md_dialog :: Dialog,
+    md_gw :: GTKWidget a,
+    md_run :: IO (DialogResult a)
+}
+
+modalDialogNew :: String -> UI GTK a -> [DialogButton a] -> IO (ModalDialog a)
+modalDialogNew title ui buttons = do
     dialog <- dialogNew
     resultv <- newIORef undefined
     set dialog [ windowTitle := title ]
+
+    let ctx = GTKCTX CS_NORMAL (return ())
+    gw <- ui_create ui ctx
 
     -- Populate the upper area
     vbox <- dialogGetUpper dialog
@@ -285,16 +370,16 @@ modalDialogNew title gw buttons = do
         return ()
     widgetShowAll hbox
 
-    return (dialog,run dialog resultv)
- where
-    run dialog resultv = do
+    let runDialog = do
         widgetShow dialog
         r <- dialogRun dialog
         v <- readIORef resultv
         widgetHide dialog
         return v
+
+    return (ModalDialog dialog gw runDialog)
         
-dialogOK, dialogReset, dialogCancel :: DialogButton a (Maybe a)
+dialogOK, dialogReset, dialogCancel :: DialogButton a
 dialogOK = ("OK",ok)
   where
     ok gw = do
@@ -312,4 +397,16 @@ dialogReset = ("Reset",reset)
 dialogCancel = ("Cancel",cancel)
   where
     cancel gw = do
-        return (Just (Nothing))
+        return (Just Nothing)
+
+getListSelection :: TreeView -> IO (Maybe Int)
+getListSelection tree = do
+    sel <- treeViewGetSelection tree
+    miter <- treeSelectionGetSelected sel
+    case miter of
+        Nothing -> return Nothing
+        Just (iter) -> return (Just (listStoreIterToIndex iter))
+
+maybeM :: (Monad m) => (Maybe a) -> (a -> m ()) -> m ()
+maybeM Nothing m = return ()
+maybeM (Just a) m = m a

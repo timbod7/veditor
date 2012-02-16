@@ -37,8 +37,10 @@ class UITK tk where
     andUI :: (HProduct l) => UI tk a -> UI tk l -> UI tk (HAnd a l)
     orUI  :: (HSum l) => UI tk a -> UI tk l -> UI tk (HOr a l)
 
-    listUI :: UI tk a -> UI tk [a]
+    listUI :: (a->String) -> UI tk a -> UI tk [a]
 
+    defaultUI :: a -> UI tk a -> UI tk a
+    
     -- | Convert a UI over a type a, to a UI over a type b, given
     -- two conversion functions.
     mapUI :: (a -> ErrVal b) -> (b -> a) -> UI tk a -> UI tk b

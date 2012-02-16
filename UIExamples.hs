@@ -60,3 +60,8 @@ unionTest = mapUI toUnion fromUnion
     fromUnion (UT_V2 v) = HSkp (HVal v)
     fromUnion (UT_V3 v) = HSkp (HSkp (HVal v))
     fromUnion (UT_V4 v) = (HSkp (HSkp (HSkp (HVal v))))
+
+listTest ::(UITK tk) => UI tk [StructTest]
+listTest = defaultUI defv $ listUI show structTest
+  where
+    defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]

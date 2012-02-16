@@ -17,14 +17,11 @@ testui title uidef = do
     button <- buttonNew
     set button [ buttonLabel := "Go" ]
         
-    ui <- uiNew uidef 
-    (dialog,runDialog) <- modalDialogNew title ui [dialogOK,dialogReset,dialogCancel]
+    dialog <- modalDialogNew title uidef [dialogOK,dialogReset,dialogCancel]
 
     on button buttonActivated $ do
-       mv <- runDialog
-       case mv of
-         Nothing -> return ()
-         (Just v) -> print v
+       mr <- md_run dialog
+       maybeM mr $ \v -> print v
        
     set window [ containerChild := button ]
     widgetShowAll window
@@ -33,6 +30,7 @@ testui title uidef = do
   where
 
 
-test1 = testui "Test: structTest" structTest
-test2 = testui "Test: structTest2" structTest2
-test3 = testui "Test: unionTest" unionTest
+test1 = testui "Test: StructTest" structTest
+test2 = testui "Test: StructTest2" structTest2
+test3 = testui "Test: UnionTest" unionTest
+test4 = testui "Test: [StructTest]" listTest
