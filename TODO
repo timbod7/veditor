@@ -1,2 +1,6 @@
 * Add support for Enums
+* Change List edit buttons to icons
 * A pure text based implementation
+* Add multiline text
+* Add boolean/toggle button
+* to/from JSON implementation

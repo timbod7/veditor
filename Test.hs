@@ -34,3 +34,4 @@ test1 = testui "Test: StructTest" structTest
 test2 = testui "Test: StructTest2" structTest2
 test3 = testui "Test: UnionTest" unionTest
 test4 = testui "Test: [StructTest]" listTest
+test5 = testui "Test: StructTest3" structTest3

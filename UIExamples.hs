@@ -65,3 +65,20 @@ listTest ::(UITK tk) => UI tk [StructTest]
 listTest = defaultUI defv $ listUI show structTest
   where
     defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]
+
+
+data StructTest3 = StructTest3 {
+    t_v7 :: String,
+    t_v8 :: Int,
+    t_v9 :: [StructTest]
+} deriving (Show)
+
+structTest3 :: (UITK tk) => UI tk StructTest3
+structTest3 = mapUI toStruct fromStruct
+           $ andUI (label "v1" stringEntry)
+           $ andUI (label "v2" readInt)
+           $ andUI (label "v3" (listUI show structTest))
+           $ nilUI
+   where
+     toStruct (a :&: b :&: c :&: HNil) = eVal (StructTest3 a b c)
+     fromStruct (StructTest3 a b c) = (a :&: b :&: c :&: HNil)
