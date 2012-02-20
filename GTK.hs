@@ -304,25 +304,20 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
                 mr <- md_run dialog
                 maybeM mr $ \v -> listStoreSetValue ls i v
 
-    addButton <- buttonNewFromStock stockAdd
-    on addButton buttonActivated $ do
+    addButton <- stockButton stockAdd IconSizeButton $ do
         dialog <- delayGet ddialog
+        mi <- getListSelection tree
+        case mi of
+            Nothing -> ui_reset (md_gw dialog)
+            (Just i) -> do
+               v <- listStoreGetValue ls i
+               ui_set (md_gw dialog) v
         mr <- md_run dialog
         maybeM mr $ \v -> void $ listStoreAppend ls v
 
-    deleteButton <- buttonNewFromStock stockDelete
-    on deleteButton buttonActivated $ do
+    deleteButton <- stockButton stockRemove IconSizeButton $ do
         mi <- getListSelection tree
         maybeM mi $ \i -> listStoreRemove ls i
-
-    duplicateButton <- buttonNew
-    set duplicateButton [buttonLabel:="Duplicate"]
-    on duplicateButton buttonActivated $ do
-        mi <- getListSelection tree
-        maybeM mi $ \i -> do
-            v <- listStoreGetValue ls i
-            listStoreInsert ls (i+1) v
-            treeViewSetCursor tree [i+1] Nothing
 
     hbox <-hBoxNew False 5
     vbox <- vBoxNew False 5
@@ -330,7 +325,6 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
     boxPackStart hbox vbox PackNatural 0
     boxPackStart vbox addButton PackNatural 0
     boxPackStart vbox deleteButton PackNatural 0
-    boxPackStart vbox duplicateButton PackNatural 0
                                             
     return GTKWidget {
           ui_widget = toWidget hbox,
@@ -449,3 +443,13 @@ getListSelection tree = do
 maybeM :: (Monad m) => (Maybe a) -> (a -> m ()) -> m ()
 maybeM Nothing m = return ()
 maybeM (Just a) m = m a
+
+stockButton stockId size action = do
+    b <- buttonNew
+    image <- imageNewFromStock stockId IconSizeSmallToolbar
+    containerAdd b image
+    on b buttonActivated action
+    set b [buttonRelief := ReliefNone]
+    return b
+
+
