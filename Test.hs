@@ -27,10 +27,31 @@ testui title uidef = do
     widgetShowAll window
     mainGUI
 
-  where
+testAll = do
+    initGUI
+    window <- windowNew
+    onDestroy window mainQuit
+    set window [ containerBorderWidth := 10, windowTitle := "Test UI" ]
+    vbox <- vBoxNew False 5
+    let addTest title uidef = do
+        button <- buttonNew
+        set button [ buttonLabel := title ]
+        dialog <- modalDialogNew title uidef [dialogOK,dialogReset,dialogCancel]
+        on button buttonActivated $ do
+           mr <- md_run dialog
+           maybeM mr $ \v -> print v
+        containerAdd vbox button
 
+    addTest "StructTest" structTest
+    addTest "StructTest2" structTest2
+    addTest "UnionTest" unionTest
+    addTest "[StructTest]" listTest
+    addTest "StructTest3" structTest3
+       
+    set window [ containerChild := vbox ]
+    widgetShowAll window
+    mainGUI
 
-test1 = testui "Test: StructTest" structTest
 test2 = testui "Test: StructTest2" structTest2
 test3 = testui "Test: UnionTest" unionTest
 test4 = testui "Test: [StructTest]" listTest

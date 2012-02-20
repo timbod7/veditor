@@ -1,4 +1,5 @@
-* Change List edit buttons to icons
+* Dialogs support string label at top
+* Subdialogs describe position in structure
 * Add multiline text
 * Add boolean/toggle button
 * Closing a modal dialog with the (x) button gives undefined exception.
