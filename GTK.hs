@@ -43,7 +43,9 @@ data GTKWidget a = GTKWidget {
     ui_set :: a -> IO (),
     ui_get :: IO (ErrVal a),
     ui_reset :: IO (),
-    ui_packWide :: Bool
+    ui_packWide :: Bool,
+    ui_tableXAttach :: [AttachOptions],
+    ui_tableYAttach :: [AttachOptions]
 }
 
 instance UITK GTK where
@@ -87,8 +89,9 @@ gtkEntry fromString toString = UIGTK "" $ \ctx -> do
            ui_set = entrySetText e.toString,
            ui_get = fmap fromString (entryGetText e),
            ui_reset = entrySetText e "",
-           ui_packWide = False
-           
+           ui_packWide = False,
+           ui_tableXAttach = [Expand,Shrink,Fill],
+           ui_tableYAttach = []
         } 
       where
         setBackground e = do
@@ -110,19 +113,19 @@ gtkAndUI ui uis = UIGTK "" $ \ctx -> do
 
         -- create this field
         gw <- ui_create ui ctx{cs_state=CS_NORMAL}
+        let xattach = ui_tableXAttach gw
+        let yattach = ui_tableYAttach gw
         if ui_packWide gw
           then do
            f <- frameNew
            frameSetLabel f (ui_label ui)
            containerAdd f (ui_widget gw)
-           let toptions = [Expand,Shrink,Fill]
-           tableAttach table f 0 2 i (i+1) toptions toptions 0 0
+           tableAttach table f 0 2 i (i+1) xattach yattach 0 0
           else do
            label <- labelNew (Just (ui_label ui))
            miscSetAlignment label 1 0
-           let toptions = [Expand,Shrink,Fill]
            tableAttach table label 0 1 i (i+1) [] [] 0 0
-           tableAttach table (ui_widget gw) 1 2 i (i+1) toptions toptions 0 0
+           tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
 
         -- create the subsequent rows
         gw2 <- ui_create uis ctx{cs_state=CS_AND table (i+1)}
@@ -135,7 +138,9 @@ gtkAndUI ui uis = UIGTK "" $ \ctx -> do
                b <- ui_get gw2
                return ((:&:) <$> a <*> b),
            ui_reset = ui_reset gw >> ui_reset gw2,
-           ui_packWide = True
+           ui_packWide = True,
+           ui_tableXAttach = xattach,
+           ui_tableYAttach = yattach
         } 
 
 gtkNilUI :: UI GTK HNil
@@ -153,7 +158,9 @@ gtkNilUI = UIGTK "" $ \ctx -> do
             ui_set = const $ return (),
             ui_get = return (eVal HNil),
             ui_reset = return (),
-            ui_packWide = False
+            ui_packWide = False,
+            ui_tableXAttach = [],
+            ui_tableYAttach = []
         } 
 
 gtkOrUI :: (HSum l) => UI GTK a -> UI GTK l -> UI GTK (HOr a l)
@@ -240,7 +247,9 @@ gtkOrUI ui uis = UIGTK "" $ \ctx -> do
           ui_set = set,
           ui_get = get,
           ui_reset = reset,
-          ui_packWide = True
+          ui_packWide = True,
+          ui_tableXAttach = [Expand,Shrink,Fill],
+          ui_tableYAttach = [Expand,Shrink,Fill]
         } 
 
 data Delayed a = Delayed {
@@ -330,7 +339,9 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
               mapM_ (listStoreAppend ls) vs,
           ui_get = fmap eVal (listStoreToList ls),
           ui_reset = listStoreClear ls,
-          ui_packWide = True
+          ui_packWide = True,
+          ui_tableXAttach = [Expand,Shrink,Fill],
+          ui_tableYAttach = [Expand,Shrink,Fill]
         } 
 
 gtkDefaultUI :: a -> UI GTK a -> UI GTK a

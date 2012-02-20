@@ -1,6 +1,7 @@
-* Add support for Enums
 * Change List edit buttons to icons
-* A pure text based implementation
 * Add multiline text
 * Add boolean/toggle button
+* Closing a modal dialog with the (x) button gives undefined exception.
+* Add support for Enums
+* A pure text based implementation
 * to/from JSON implementation
