@@ -37,6 +37,8 @@ class UITK tk where
     andUI :: (HProduct l) => UI tk a -> UI tk l -> UI tk (HAnd a l)
     orUI  :: (HSum l) => UI tk a -> UI tk l -> UI tk (HOr a l)
 
+    enumUI :: [String] -> UI tk Int
+
     listUI :: (a->String) -> UI tk a -> UI tk [a]
 
     defaultUI :: a -> UI tk a -> UI tk a
@@ -59,3 +61,5 @@ readEntry = entry fromString show
 readInt :: (UITK tk) => UI tk Int
 readInt = readEntry
 
+boolUI :: (UITK tk) => UI tk Bool
+boolUI = mapUI (eVal.toEnum) fromEnum (enumUI ["False","True"])

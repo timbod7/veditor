@@ -61,6 +61,7 @@ instance UITK GTK where
     andUI = gtkAndUI
     orUI = gtkOrUI
     listUI = gtkListUI
+    enumUI = gtkEnumUI
     mapUI = gtkMapUI
     defaultUI = gtkDefaultUI
 
@@ -336,6 +337,24 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
           ui_packWide = True,
           ui_tableXAttach = [Expand,Shrink,Fill],
           ui_tableYAttach = [Expand,Shrink,Fill]
+        } 
+
+gtkEnumUI :: [String] -> UI GTK Int
+gtkEnumUI labels = UIGTK "" $ \ctx -> do
+    combo <- comboBoxNewText
+    forM_ labels $ \label -> comboBoxAppendText combo label
+    comboBoxSetActive combo 0
+    align <- alignmentNew 0 0 0 0
+    containerAdd align combo
+
+    return GTKWidget {
+          ui_widget = toWidget align,
+          ui_set = \vs -> (comboBoxSetActive combo vs),
+          ui_get = fmap eVal (comboBoxGetActive combo),
+          ui_reset = comboBoxSetActive combo 0,
+          ui_packWide = False,
+          ui_tableXAttach = [Expand,Shrink,Fill],
+          ui_tableYAttach = []
         } 
 
 gtkDefaultUI :: a -> UI GTK a -> UI GTK a

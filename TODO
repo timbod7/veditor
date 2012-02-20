@@ -1,8 +1,6 @@
 * Dialogs support string label at top
 * Subdialogs describe position in structure
 * Add multiline text
-* Add boolean/toggle button
 * Closing a modal dialog with the (x) button gives undefined exception.
-* Add support for Enums
 * A pure text based implementation
 * to/from JSON implementation
