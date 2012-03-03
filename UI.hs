@@ -1,21 +1,17 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies,FlexibleInstances,MultiParamTypeClasses #-}
 
 module UI where
 
 import ErrVal
 
+-- The HList type
 
--- Product types
--- (ie for records and structure)
+data HNil = HNil deriving (Eq,Show,Read)
+data HCons e l = HCons e l deriving (Eq,Show,Read) 
 
-data HNil = HNil
-
-data HAnd a b = a :&: b
-infixr 9 :&:
-
-class HProduct l
-instance HProduct HNil
-instance HProduct l => HProduct (HAnd e l)
+class HList l
+instance HList HNil
+instance HList l => HList (HCons e l)
 
 -- Sum types
 -- (ie for discriminated unions)
@@ -23,9 +19,27 @@ instance HProduct l => HProduct (HAnd e l)
 data HOr a b = HVal a
              | HSkp b
 
-class HSum l
-instance HSum HNil
-instance HSum l => HSum (HOr e l)
+----------------------------------------------------------------------
+
+class FieldList tk l
+  where
+    type StructV tk l
+    type UnionV tk l
+
+instance (UITK tk) => FieldList tk HNil
+  where
+    type StructV tk HNil = HNil
+    type UnionV tk HNil = HNil
+
+instance (UITK tk,FieldList tk l, tk~tk') => FieldList tk (HCons (UI tk' a) l)
+  where
+    type StructV tk (HCons (UI tk' a) l) = HCons a (StructV tk l)
+    type UnionV  tk (HCons (UI tk' a) l) = HOr a (UnionV tk l)
+
+(.*.) :: (FieldList tk l) => UI tk a -> l  -> HCons (UI tk a) l
+(.*.) = HCons
+
+----------------------------------------------------------------------
 
 class UITK tk where
     data UI tk :: * -> *
@@ -33,9 +47,10 @@ class UITK tk where
     entry :: (String -> ErrVal a) -> (a -> String) -> UI tk a
     label :: String -> UI tk a -> UI tk a
 
-    nilUI ::  UI tk HNil             
-    andUI :: (HProduct l) => UI tk a -> UI tk l -> UI tk (HAnd a l)
-    orUI  :: (HSum l) => UI tk a -> UI tk l -> UI tk (HOr a l)
+    nilUI ::  UI tk HNil
+
+    structUI :: (FieldList tk l) => l -> (UI tk (StructV tk l))
+    unionUI  :: (FieldList tk l) => l -> (UI tk (UnionV tk l))
 
     enumUI :: [String] -> UI tk Int
 
