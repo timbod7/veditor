@@ -21,60 +21,64 @@ data HOr a b = HVal a
 
 ----------------------------------------------------------------------
 
-class FieldList tk l
+class FieldList ui l
   where
-    type StructV tk l
-    type UnionV tk l
+    type StructV l
+    type UnionV l
 
-instance (UITK tk) => FieldList tk HNil
+instance FieldList ui HNil
   where
-    type StructV tk HNil = HNil
-    type UnionV tk HNil = HNil
+    type StructV HNil = HNil
+    type UnionV HNil = HNil
 
-instance (UITK tk,FieldList tk l, tk~tk') => FieldList tk (HCons (UI tk' a) l)
+instance (UI ui, FieldList ui' l, ui~ui' ) => FieldList ui' (HCons (ui a) l)
   where
-    type StructV tk (HCons (UI tk' a) l) = HCons a (StructV tk l)
-    type UnionV  tk (HCons (UI tk' a) l) = HOr a (UnionV tk l)
+    type StructV (HCons (ui a) l) = HCons a (StructV l)
+    type UnionV  (HCons (ui a) l) = HOr a (UnionV l)
 
-(.*.) :: (FieldList tk l) => UI tk a -> l  -> HCons (UI tk a) l
+(.*.) :: (UI ui, FieldList ui l) => ui a -> l  -> HCons (ui a) l
 (.*.) = HCons
+
+fcons :: (UI ui, FieldList ui l) => ui a -> l  -> HCons (ui a) l
+fcons = HCons
+
+infixr 5 .*.
 
 ----------------------------------------------------------------------
 
-class UITK tk where
-    data UI tk :: * -> *
+class UI ui where
+    entry :: (String -> ErrVal a) -> (a -> String) -> ui a
+    label :: String -> ui a -> ui a
 
-    entry :: (String -> ErrVal a) -> (a -> String) -> UI tk a
-    label :: String -> UI tk a -> UI tk a
+    nilUI ::  ui HNil
 
-    nilUI ::  UI tk HNil
+    structUI :: (FieldList ui l) => l -> (ui (StructV l))
+    unionUI  :: (FieldList ui l) => l -> (ui (UnionV l))
 
-    structUI :: (FieldList tk l) => l -> (UI tk (StructV tk l))
-    unionUI  :: (FieldList tk l) => l -> (UI tk (UnionV tk l))
+    enumUI :: [String] -> ui Int
 
-    enumUI :: [String] -> UI tk Int
+    listUI :: (a->String) -> ui a -> ui [a]
 
-    listUI :: (a->String) -> UI tk a -> UI tk [a]
-
-    defaultUI :: a -> UI tk a -> UI tk a
+    defaultUI :: a -> ui a -> ui a
     
     -- | Convert a UI over a type a, to a UI over a type b, given
     -- two conversion functions.
-    mapUI :: (a -> ErrVal b) -> (b -> a) -> UI tk a -> UI tk b
+    mapUI :: (a -> ErrVal b) -> (b -> a) -> ui a -> ui b
 
-stringEntry :: (UITK tk) => UI tk String
-stringEntry = entry eVal id
+stringUI :: (UI ui) => ui String
+stringUI = entry eVal id
 
 -- | A UI for any type implemented Read and Show.
-readEntry :: (UITK tk, Read a, Show a) => UI tk a
-readEntry = entry fromString show 
+readUI :: (UI ui, Read a, Show a) => ui a
+readUI = entry fromString show 
   where
     fromString s = case reads s of
         [(a,"")] -> eVal a
         _ -> eErr ("Read failed")
 
-readInt :: (UITK tk) => UI tk Int
-readInt = readEntry
+intUI :: (UI ui) => ui Int
+intUI = readUI
 
-boolUI :: (UITK tk) => UI tk Bool
+boolUI :: (UI ui) => ui Bool
 boolUI = mapUI (eVal.toEnum) fromEnum (enumUI ["False","True"])
+   
