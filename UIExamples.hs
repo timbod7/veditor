@@ -11,15 +11,16 @@ data StructTest = StructTest {
     t_v3 :: Int
 } deriving (Show)
 
-structTest :: (UI ui) => ui StructTest
-structTest = mapUI toStruct fromStruct $ structUI $
-    label "v1" stringUI .*.
-    label "v2" intUI .*.
-    label "v3" intUI .*.
-    HNil
+instance HasUI StructTest
   where
-    toStruct (HCons a (HCons b (HCons c HNil))) = eVal (StructTest a b c)
-    fromStruct (StructTest a b c) = (HCons a (HCons b (HCons c HNil)))
+    mkUI = mapUI toStruct fromStruct
+        (   fieldUI "v1"
+        .*. fieldUI "v2"
+        .*. fieldUI "v3"
+        )
+      where
+        toStruct (a,(b,c)) = eVal (StructTest a b c)
+        fromStruct (StructTest a b c) = (a,(b,c))
 
 data StructTest2 = StructTest2 {
     t_v4 :: String,
@@ -27,15 +28,16 @@ data StructTest2 = StructTest2 {
     t_v6 :: StructTest
 } deriving (Show)
 
-structTest2 :: (UI ui) => ui StructTest2
-structTest2 = mapUI toStruct fromStruct $ structUI $
-    label "v1" stringUI .*.
-    label "v2" intUI .*.
-    label "v3" structTest .*.
-    HNil
+instance HasUI StructTest2
   where
-    toStruct (HCons a (HCons b (HCons c HNil))) = eVal (StructTest2 a b c)
-    fromStruct (StructTest2 a b c) = (HCons a (HCons b (HCons c HNil)))
+    mkUI = mapUI toStruct fromStruct
+        (   fieldUI "v1"
+        .*. fieldUI "v2"
+        .*. fieldUI "v3"
+        )
+      where
+        toStruct (a,(b,c)) = eVal (StructTest2 a b c)
+        fromStruct (StructTest2 a b c) = (a,(b,c))
 
 data UnionTest = UT_V1 String
                | UT_V2 Int
@@ -43,28 +45,29 @@ data UnionTest = UT_V1 String
                | UT_V4 UnionTest
     deriving (Show)
 
-unionTest :: (UI ui) => ui UnionTest
-unionTest = mapUI toUnion fromUnion $ unionUI $
-    label "v1" stringUI .*.
-    label "v2" intUI .*.
-    label "v3" structTest .*.
-    label "v4" unionTest .*.
-    HNil
+instance HasUI UnionTest
   where
-    toUnion (HVal v) =  eVal (UT_V1 v)
-    toUnion (HSkp (HVal v)) =  eVal (UT_V2 v)
-    toUnion (HSkp (HSkp (HVal v))) =  eVal (UT_V3 v)
-    toUnion (HSkp (HSkp (HSkp (HVal v)))) =  eVal (UT_V4 v)
+    mkUI = mapUI toUnion fromUnion 
+        (   fieldUI "v1"
+        .+. fieldUI "v2"
+        .+. fieldUI "v3"
+        .+. fieldUI "v4"
+        )
+      where
+        toUnion (Left v) =  eVal (UT_V1 v)
+        toUnion (Right (Left v)) =  eVal (UT_V2 v)
+        toUnion (Right (Right (Left v))) =  eVal (UT_V3 v)
+        toUnion (Right (Right (Right v))) =  eVal (UT_V4 v)
 
-    fromUnion (UT_V1 v) = HVal v
-    fromUnion (UT_V2 v) = HSkp (HVal v)
-    fromUnion (UT_V3 v) = HSkp (HSkp (HVal v))
-    fromUnion (UT_V4 v) = (HSkp (HSkp (HSkp (HVal v))))
+        fromUnion (UT_V1 v) = Left v
+        fromUnion (UT_V2 v) = Right (Left v)
+        fromUnion (UT_V3 v) = Right (Right (Left v))
+        fromUnion (UT_V4 v) = (Right (Right (Right v)))
 
-listTest ::(UI ui) => ui [StructTest]
-listTest = defaultUI defv $ listUI show structTest
+listTest :: UI [StructTest]
+listTest = defaultUI defv $ listUI show mkUI
   where
-    defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]
+   defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]
 
 
 data StructTest3 = StructTest3 {
@@ -74,13 +77,14 @@ data StructTest3 = StructTest3 {
     t_v10 :: [StructTest]
 } deriving (Show)
 
-structTest3 :: (UI ui) => ui StructTest3
-structTest3 = mapUI toStruct fromStruct $ structUI $
-    label "v1" stringUI .*.
-    label "v2" intUI .*.
-    label "v3" boolUI .*.
-    label "v4" (listUI show structTest) .*.
-    HNil
-   where
-     toStruct (HCons a (HCons b (HCons c (HCons d HNil)))) = eVal (StructTest3 a b c d)
-     fromStruct (StructTest3 a b c d) = (HCons a (HCons b (HCons c (HCons d HNil))))
+instance HasUI StructTest3
+  where
+    mkUI = mapUI toStruct fromStruct
+        (   fieldUI "v1"
+        .*. fieldUI "v2"
+        .*. fieldUI "v3"
+        .*. label "v4" (listUI show mkUI)
+        )
+     where
+       toStruct (a,(b,(c,d))) = eVal (StructTest3 a b c d)
+       fromStruct (StructTest3 a b c d) = (a,(b,(c,d)))

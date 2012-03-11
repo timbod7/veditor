@@ -1,13 +1,12 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
 
 module GTK(
-    GTK,
     GTKWidget(..),
-    uiNew,
     modalDialogNew,
     ModalDialog(..),
     dialogOK, dialogReset, dialogCancel,
-    maybeM
+    maybeM,
+    uiGTK
 ) where
 
 import Graphics.UI.Gtk
@@ -19,22 +18,7 @@ import qualified Data.Map as Map
 import UI
 import ErrVal
 
-data GTK = GTK
-
-data UnionState = UnionState {
-    us_table :: Table,
-    us_combo :: ComboBox,
-    us_current :: IORef (Maybe (Int,Widget)),
-    us_callback :: IORef (Map.Map Int (IO ())),
-    us_i :: Int
-}
-
-data CTXState = CS_NORMAL
-              | CS_AND Table Int
-              | CS_OR UnionState
-
 data GTKCTX = GTKCTX {
-    cs_state :: CTXState,
     cs_onActivate :: IO ()
 }
 
@@ -48,25 +32,73 @@ data GTKWidget a = GTKWidget {
     ui_tableYAttach :: [AttachOptions]
 }
 
-instance UITK GTK where
+data UIGTK a = UIGTK {
+    ui_label :: String,
+    ui_create :: (GTKCTX -> IO (GTKWidget a))
+}
 
-    data UI GTK a = UIGTK {
-        ui_label :: String,
-        ui_create :: (GTKCTX -> IO (GTKWidget a))
-    }
+uiGTK  :: UI a -> UIGTK a
+uiGTK (Entry fromString toString) = gtkEntry fromString toString 
+uiGTK (Label label ui) = (uiGTK ui){ui_label=label}
+uiGTK (MapUI fab fba ui) = gtkMapUI fab fba (uiGTK ui)
+uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
+uiGTK (EnumUI ss) = gtkEnumUI ss
+uiGTK (ListUI toString ui) = gtkListUI toString (uiGTK ui)
+uiGTK (AndUI uia uib) = gtkAndUI uia uib
+uiGTK (OrUI uia uib) = gtkOrUI uia uib
 
-    entry = gtkEntry
-    label s ui = ui{ui_label=s}
-    nilUI = gtkNilUI 
-    andUI = gtkAndUI
-    orUI = gtkOrUI
-    listUI = gtkListUI
-    enumUI = gtkEnumUI
-    mapUI = gtkMapUI
-    defaultUI = gtkDefaultUI
+gtkAndUI :: (UI a) -> (UI b) -> UIGTK (a,b)
+gtkAndUI uia uib = UIGTK "" $ \ctx -> do
+    let ui = (AndUI uia uib)
+    let nRows = countFields ui
+    table <- tableNew nRows 2 False
+    rowiv <- newIORef 0
+    addFields table rowiv ctx ui 
+  where
+    countFields :: UI a -> Int
+    countFields (AndUI uia uib) = countFields uia + countFields uib
+    countFields _ = 1
 
+    addFields :: Table -> IORef Int -> GTKCTX -> UI a -> IO (GTKWidget a)
+    addFields table rowiv ctx (AndUI uia uib) = do
+        gwa <- addFields table rowiv ctx uia
+        gwb <- addFields table rowiv ctx uib
+        return GTKWidget {
+            ui_widget = toWidget table,
+            ui_set = \(a,b) -> do
+                ui_set gwa a
+                ui_set gwb b,
+            ui_get = do
+                ea <- ui_get gwa
+                eb <- ui_get gwb
+                return ( (,) <$> ea <*> eb ),
+            ui_reset = ui_reset gwa >> ui_reset gwb,
+            ui_packWide = True,
+            ui_tableXAttach = [],
+            ui_tableYAttach = []
+        } 
 
-gtkMapUI :: (a -> ErrVal b) -> (b -> a) -> UI GTK a -> UI GTK b
+    addFields table rowiv ctx aui = do
+        let ui = uiGTK aui
+        gw <- ui_create ui ctx
+        i <- readIORef rowiv
+        modifyIORef rowiv (1+)
+        let xattach = ui_tableXAttach gw
+        let yattach = ui_tableYAttach gw
+        if ui_packWide gw
+          then do
+            f <- frameNew
+            frameSetLabel f (ui_label ui)
+            containerAdd f (ui_widget gw)
+            tableAttach table f 0 2 i (i+1) xattach yattach 0 0
+          else do
+            label <- labelNew (Just (ui_label ui))
+            miscSetAlignment label 1 0
+            tableAttach table label 0 1 i (i+1) [] [] 0 0
+            tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
+        return gw
+
+gtkMapUI :: (a -> ErrVal b) -> (b -> a) -> UIGTK a -> UIGTK b
 gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
       where
         mkui ctx = do
@@ -79,179 +111,146 @@ gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
 
 invalidEntryBackground = Color 65535 50000 50000
 
-gtkEntry :: (String -> ErrVal a) -> (a -> String) -> UI GTK a
+gtkEntry :: (String -> ErrVal a) -> (a -> String) -> UIGTK a
 gtkEntry fromString toString = UIGTK "" $ \ctx -> do
-        e <- entryNew
-        e `on` editableChanged $ setBackground e
-        e `on` entryActivate  $ cs_onActivate ctx
-        setBackground e
-        return GTKWidget {
-           ui_widget = toWidget e,
-           ui_set = entrySetText e.toString,
-           ui_get = fmap fromString (entryGetText e),
-           ui_reset = entrySetText e "",
-           ui_packWide = False,
-           ui_tableXAttach = [Expand,Shrink,Fill],
-           ui_tableYAttach = []
+    e <- entryNew
+    e `on` editableChanged $ setBackground e
+    e `on` entryActivate  $ cs_onActivate ctx
+    setBackground e
+    return GTKWidget {
+        ui_widget = toWidget e,
+        ui_set = entrySetText e.toString,
+        ui_get = fmap fromString (entryGetText e),
+        ui_reset = entrySetText e "",
+        ui_packWide = False,
+        ui_tableXAttach = [Expand,Shrink,Fill],
+        ui_tableYAttach = []
         } 
-      where
-        setBackground e = do
-            s <-entryGetText e
-            errval (\_ -> setOK e) (\_ -> setInvalid e) (fromString s)
-        setOK e = widgetRestoreBase e StateNormal
-        setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
+  where
+    setBackground e = do
+        s <-entryGetText e
+        errval (\_ -> setOK e) (\_ -> setInvalid e) (fromString s)
+    setOK e = widgetRestoreBase e StateNormal
+    setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
-gtkAndUI :: (HProduct l) => UI GTK a -> UI GTK l -> UI GTK (HAnd a l)
-gtkAndUI ui uis = UIGTK "" $ \ctx -> do
-        (table,i) <- case cs_state ctx of
-            (CS_AND table i) -> do
-                tableResize table (i + 1) 2
-                return (table,i+1)
-            CS_NORMAL -> do
-                table <- tableNew 1 2 False
-                tableSetColSpacing table 0 10
-                return (table,0)
+data UnionState = UnionState {
+    us_table :: Table,
+    us_combo :: ComboBox,
+    us_current :: IORef (Maybe (Int,Widget)),
+    us_callback :: IORef (Map.Map Int (IO ())),
+    us_i :: IORef Int
+}
 
-        -- create this field
-        gw <- ui_create ui ctx{cs_state=CS_NORMAL}
-        let xattach = ui_tableXAttach gw
-        let yattach = ui_tableYAttach gw
-        if ui_packWide gw
-          then do
-           f <- frameNew
-           frameSetLabel f (ui_label ui)
-           containerAdd f (ui_widget gw)
-           tableAttach table f 0 2 i (i+1) xattach yattach 0 0
-          else do
-           label <- labelNew (Just (ui_label ui))
-           miscSetAlignment label 1 0
-           tableAttach table label 0 1 i (i+1) [] [] 0 0
-           tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
+gtkOrUI :: UI a -> UI b -> UIGTK (Either a b)
+gtkOrUI uia uib = UIGTK "" $ \ctx -> do
+    let ui = (OrUI uia uib)
+    let labels = getLabels ui 
+    table <- tableNew 1 2 False
+    combo <- comboBoxNewText
+    cref <- newIORef Map.empty
+    on combo changed $ do
+        i <- comboBoxGetActive combo
+        cm <- readIORef cref
+        case Map.lookup i cm of
+            Nothing -> return ()
+            (Just a) -> a
+        return ()
 
-        -- create the subsequent rows
-        gw2 <- ui_create uis ctx{cs_state=CS_AND table (i+1)}
+    align <- alignmentNew 0 0 0 0
+    containerAdd align combo
+    tableAttachDefaults table align 0 1 0 1
+    rowiv <- newIORef 0
+    wref <- newIORef Nothing
+    let ustate = UnionState table combo wref cref rowiv 
+
+    addChoices ustate ctx ui
+
+  where
+    getLabels :: UI a -> [String]
+    getLabels (OrUI uia uib) = getLabels uia ++ getLabels uib
+    getLabels ui = [ui_label (uiGTK ui)]
+
+    addChoices :: UnionState -> GTKCTX -> UI a -> IO (GTKWidget a)
+    addChoices us ctx (OrUI uia uib) = do
+        gwa <- addChoices us ctx uia
+        ileft <- readIORef (us_i us)
+        gwb <- addChoices us ctx uib
+
+        let isLeftSelected = do
+            mc <- readIORef (us_current us)
+            case mc of
+                Nothing -> error "impossible"
+                (Just (i,_)) -> return (i < ileft)
 
         return GTKWidget {
-           ui_widget = toWidget table,
-           ui_set = \(a :&: b) -> ui_set gw a >> ui_set gw2 b,
-           ui_get = do
-               a <- ui_get gw
-               b <- ui_get gw2
-               return ((:&:) <$> a <*> b),
-           ui_reset = ui_reset gw >> ui_reset gw2,
-           ui_packWide = True,
-           ui_tableXAttach = xattach,
-           ui_tableYAttach = yattach
-        } 
-
-gtkNilUI :: UI GTK HNil
-gtkNilUI = UIGTK "" $ \ctx -> do
-        w <- case cs_state ctx of
-            (CS_AND table i) -> do
-                return (toWidget table)
-            (CS_OR us) -> do
-                return (toWidget (us_table us))
-            CS_NORMAL -> do
-                label <- labelNew Nothing
-                return (toWidget label)
-        return GTKWidget {
-            ui_widget = w,
-            ui_set = const $ return (),
-            ui_get = return (eVal HNil),
-            ui_reset = return (),
+            ui_widget = toWidget (us_table us),
+            ui_set = \v -> case v of
+                (Left a) -> ui_set gwa a
+                (Right b) -> ui_set gwb b,
+            ui_get = do
+                l <- isLeftSelected
+                if l then do ea <- ui_get gwa
+                             return (fmap Left ea)
+                     else do eb <- ui_get gwb
+                             return (fmap Right eb)
+                ,
+            ui_reset = ui_reset gwa
+                ,
             ui_packWide = False,
             ui_tableXAttach = [],
             ui_tableYAttach = []
         } 
+        
+    addChoices us ctx aui  = do
+        let ui = uiGTK aui
 
-gtkOrUI :: (HSum l) => UI GTK a -> UI GTK l -> UI GTK (HOr a l)
-gtkOrUI ui uis = UIGTK "" $ \ctx -> do
-        us <- case cs_state ctx of
-            (CS_OR us) -> return us
-            CS_NORMAL -> do
-                table <- tableNew 1 2 False
-                combo <- comboBoxNewText
-                cref <- newIORef Map.empty
-                on combo changed $ do
-                    i <- comboBoxGetActive combo
-                    cm <- readIORef cref
-                    case Map.lookup i cm of
-                        Nothing -> return ()
-                        (Just a) -> a
-                    return ()
+        comboBoxAppendText (us_combo us) (ui_label ui)
 
-                align <- alignmentNew 0 0 0 0
-                containerAdd align combo
-                tableAttachDefaults table align 0 1 0 1
+        i <- readIORef (us_i us)
+        modifyIORef (us_i us) (+1)
 
-                wref <- newIORef Nothing
-                return (UnionState table combo wref cref 0)
-
-        let (UnionState table combo wref cref i) = us
-
-        comboBoxAppendText combo (ui_label ui)
-
-        dgw <- delayIO (ui_create ui ctx{cs_state=CS_NORMAL})
-
-        gw2 <- ui_create uis ctx{cs_state=CS_OR us{us_i=i+1}}
+        dgw <- delayIO (ui_create ui ctx)
 
         let showThisUI = do
+              let wref = us_current us
+              let table = us_table us
               gw <- delayGet dgw
               mw <- readIORef wref
               case mw of
                 Nothing -> do
-                    tableAttachDefaults table (ui_widget gw) 0 1 1 2
-                    widgetShowAll (ui_widget gw)
-                    writeIORef wref (Just (i,(ui_widget gw)))
+                  tableAttachDefaults table (ui_widget gw) 0 1 1 2
+                  widgetShowAll (ui_widget gw)
+                  writeIORef wref (Just (i,(ui_widget gw)))
                 (Just (oi,w)) | oi == i -> return ()
                               | otherwise -> do
-                    containerRemove table w
-                    tableAttachDefaults table (ui_widget gw) 0 2 1 2
-                    widgetShowAll (ui_widget gw)
-                    writeIORef wref (Just (i,(ui_widget gw)))
+                  containerRemove table w
+                  tableAttachDefaults table (ui_widget gw) 0 2 1 2
+                  widgetShowAll (ui_widget gw)
+                  writeIORef wref (Just (i,(ui_widget gw)))
               return gw
 
-            set (HSkp a) = ui_set gw2 a
-            set (HVal a) = do
-              comboBoxSetActive combo i
-              gw <- showThisUI
-              ui_set gw a
+            setCombo = comboBoxSetActive (us_combo us) i
 
-            get = do
-                i' <- comboBoxGetActive combo
-                if i' == i
-                  then do
-                    gw <- delayGet dgw
-                    a <- ui_get gw
-                    return (fmap HVal a)
-                  else do
-                    b <- ui_get gw2
-                    return (fmap HSkp b)
+            set a = do
+                setCombo
+                gw <- showThisUI
+                ui_set gw a
 
-            reset = do
-                when (i==0) $ do
-                    comboBoxSetActive combo i
-                pending <- delayPending dgw
-                when (not pending) $ do
-                    gw <- delayGet dgw
-                    ui_reset gw
-                ui_reset gw2
-
-        modifyIORef cref (Map.insert i (void showThisUI))
+        modifyIORef (us_callback us) (Map.insert i (void showThisUI))
 
         when (i==0) $ do
-            comboBoxSetActive combo i
+            setCombo
             void showThisUI
 
         return GTKWidget {
-          ui_widget = toWidget table,
-          ui_set = set,
-          ui_get = get,
-          ui_reset = reset,
-          ui_packWide = True,
-          ui_tableXAttach = [Expand,Shrink,Fill],
-          ui_tableYAttach = [Expand,Shrink,Fill]
-        } 
+            ui_widget = toWidget (us_table us),
+            ui_set = set,
+            ui_get = showThisUI >>= ui_get,
+            ui_reset = setCombo >> showThisUI >>= ui_reset,
+            ui_packWide = True,
+            ui_tableXAttach = [Expand,Shrink,Fill],
+            ui_tableYAttach = [Expand,Shrink,Fill]
+         } 
 
 data Delayed a = Delayed {
       delayGet :: IO a,
@@ -278,7 +277,7 @@ delayIO f = do
           (Just a) -> return False
           Nothing -> return True
 
-gtkListUI :: (a -> String) -> UI GTK a -> UI GTK [a]
+gtkListUI :: (a -> String) -> UIGTK a -> UIGTK [a]
 gtkListUI toString ui = UIGTK "" $ \ctx -> do
     ls <- listStoreNew []
     tree <- treeViewNewWithModel ls
@@ -339,7 +338,7 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
           ui_tableYAttach = [Expand,Shrink,Fill]
         } 
 
-gtkEnumUI :: [String] -> UI GTK Int
+gtkEnumUI :: [String] -> UIGTK Int
 gtkEnumUI labels = UIGTK "" $ \ctx -> do
     combo <- comboBoxNewText
     forM_ labels $ \label -> comboBoxAppendText combo label
@@ -357,14 +356,14 @@ gtkEnumUI labels = UIGTK "" $ \ctx -> do
           ui_tableYAttach = []
         } 
 
-gtkDefaultUI :: a -> UI GTK a -> UI GTK a
+gtkDefaultUI :: a -> UIGTK a -> UIGTK a
 gtkDefaultUI a ui = UIGTK (ui_label ui) $ \ctx -> do
     gw <- ui_create ui ctx
     return gw{ui_reset=ui_set gw a}
 
 
-uiNew :: (UI GTK a) -> IO (GTKWidget a)
-uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))
+-- uiNew :: (UI GTK a) -> IO (GTKWidget a)
+-- uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))
 
 type DialogResult a = Maybe a
 type DialogButton a = (String,GTKWidget a -> IO (Maybe (DialogResult a)))
@@ -375,7 +374,7 @@ data ModalDialog a = ModalDialog {
     md_run :: IO (DialogResult a)
 }
 
-modalDialogNew :: String -> UI GTK a -> [DialogButton a] -> IO (ModalDialog a)
+modalDialogNew :: String -> UIGTK a -> [DialogButton a] -> IO (ModalDialog a)
 modalDialogNew title ui buttons = do
     dialog <- dialogNew
     resultv <- newIORef undefined
@@ -385,7 +384,7 @@ modalDialogNew title ui buttons = do
     -- create a widget when it needs to reference the widget being
     -- created. Revert to mutation...
     activatefv <- newIORef (return ())
-    let ctx = GTKCTX CS_NORMAL (readIORef activatefv >>= id)
+    let ctx = GTKCTX (readIORef activatefv >>= id)
     gw <- ui_create ui ctx
 
     let activatef = do
