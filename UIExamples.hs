@@ -16,7 +16,7 @@ instance HasUI StructTest
     mkUI = mapUI toStruct fromStruct
         (   fieldUI "v1"
         .*. fieldUI "v2"
-        .*. fieldUI "v3"
+        .*. Label "v3" (defaultUI 7 mkUI)
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest a b c)

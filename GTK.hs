@@ -359,6 +359,7 @@ gtkEnumUI labels = UIGTK "" $ \ctx -> do
 gtkDefaultUI :: a -> UIGTK a -> UIGTK a
 gtkDefaultUI a ui = UIGTK (ui_label ui) $ \ctx -> do
     gw <- ui_create ui ctx
+    ui_set gw a
     return gw{ui_reset=ui_set gw a}
 
 
