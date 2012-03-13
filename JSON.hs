@@ -22,14 +22,44 @@ data UIJSON a = UIJSON {
     }
 
 uiJSON :: UI a -> UIJSON a
-uiJSON (Entry fromString toString) = jsonEntry fromString toString
-uiJSON (Label label ui) = (uiJSON ui){uj_label=Text.pack label}
-uiJSON (MapUI fab fba ui) = jsonMapUI fab fba (uiJSON ui)
-uiJSON (DefaultUI a ui) = (uiJSON ui){uj_default=Just a}
-uiJSON (EnumUI ss) = jsonEnumUI ss
-uiJSON (ListUI _ ui) = jsonListUI (uiJSON ui)
-uiJSON (AndUI uia uib) = jsonAndUI uia uib
-uiJSON (OrUI uia uib) = jsonOrUI uia uib
+uiJSON = mkJSON . addLabels
+
+mkJSON :: UI a -> UIJSON a
+mkJSON (Entry fromString toString) = jsonEntry fromString toString
+mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
+mkJSON (MapUI fab fba ui) = jsonMapUI fab fba (mkJSON ui)
+mkJSON (DefaultUI a ui) = (mkJSON ui){uj_default=Just a}
+mkJSON (EnumUI ss) = jsonEnumUI ss
+mkJSON (ListUI _ ui) = jsonListUI (mkJSON ui)
+mkJSON (AndUI uia uib) = jsonAndUI uia uib
+mkJSON (OrUI uia uib) = jsonOrUI uia uib
+
+-- | Recursively add numeric labels to and/or branches
+-- which don't already have them
+addLabels :: UI a -> UI a
+addLabels (Label label ui) = Label label (addLabels ui)
+addLabels (MapUI fab fba ui) = MapUI fab fba (addLabels ui)
+addLabels (DefaultUI a ui) = DefaultUI a (addLabels ui)
+addLabels (ListUI sf ui) = ListUI sf (addLabels ui)
+addLabels ui@(AndUI uia uib) = fst (addAndLabels ui 0)
+addLabels ui@(OrUI uia uib) = fst (addOrLabels ui 0)
+addLabels ui = ui
+
+addAndLabels :: UI a -> Int -> (UI a,Int)
+addAndLabels (AndUI uia uib) i0 = 
+     let (uia',i1) = addAndLabels uia i0
+         (uib',i2) = addAndLabels uib i1
+     in (AndUI uia' uib',i2)
+addAndLabels ui@(Label _ _) i = (addLabels ui,i)
+addAndLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
+
+addOrLabels :: UI a -> Int -> (UI a,Int)
+addOrLabels (OrUI uia uib) i0 = 
+    let (uia',i1) = addOrLabels uia i0
+        (uib',i2) = addOrLabels uib i1
+    in (OrUI uia' uib',i2)
+addOrLabels ui@(Label _ _) i = (addLabels ui,i)
+addOrLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
 
 jsonEntry :: (String -> ErrVal a) -> (a -> String) -> UIJSON a
 jsonEntry fromString toString = UIJSON {
@@ -71,31 +101,23 @@ jsonAndUI uia uib = UIJSON {
         _ -> eErr "expected a json object"
     }
   where
-    ui = fst (addAndLabels (AndUI uia uib) 1)
+    ui = AndUI uia uib
 
     tojson :: UI a -> a -> DA.Object
     tojson (AndUI uia uib) (a,b)= tojson uia a `HMap.union` tojson uib b
     tojson ui a =
-        let uj = uiJSON ui
+        let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
     fromjson :: DA.Object -> UI a -> ErrVal a
     fromjson o (AndUI uia uib) = (,) <$> fromjson o uia <*> fromjson o uib
     fromjson o ui = 
-        let uj = uiJSON ui
+        let uj = mkJSON ui
         in case HMap.lookup (uj_label uj) o of
             (Just j) -> uj_fromjson uj j
             Nothing -> case uj_default uj of
                  Nothing -> eErr ("field " ++ Text.unpack (uj_label uj) ++ " missing")
                  (Just v) -> eVal v
-
-    addAndLabels :: UI a -> Int -> (UI a,Int)
-    addAndLabels (AndUI uia uib) i0 = 
-         let (uia',i1) = addAndLabels uia i0
-             (uib',i2) = addAndLabels uib i1
-         in (AndUI uia' uib',i2)
-    addAndLabels ui@(Label _ _) i = (ui,i)
-    addAndLabels ui i = (Label ("_"++show i) ui,i+1)
 
 jsonOrUI uia uib = UIJSON {
     uj_label= Text.empty,
@@ -106,13 +128,13 @@ jsonOrUI uia uib = UIJSON {
         _ -> eErr "expected a json object"
     }
   where
-    ui = fst (addOrLabels (OrUI uia uib) 1)
+    ui = OrUI uia uib
 
     tojson :: UI a -> a -> DA.Object
     tojson (OrUI uia uib) (Left a) = tojson uia a
     tojson (OrUI uia uib) (Right b) = tojson uib b
     tojson ui a = 
-        let uj = uiJSON ui
+        let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
     fromjson :: DA.Object -> UI a -> ErrVal a
@@ -131,15 +153,7 @@ jsonOrUI uia uib = UIJSON {
     fromjson1 l v ui | l == (uj_label uj) = (Just (uj_fromjson uj v))
                      | otherwise = Nothing
       where
-        uj = uiJSON ui
-
-    addOrLabels :: UI a -> Int -> (UI a,Int)
-    addOrLabels (OrUI uia uib) i0 = 
-        let (uia',i1) = addOrLabels uia i0
-            (uib',i2) = addOrLabels uib i1
-        in (OrUI uia' uib',i2)
-    addOrLabels ui@(Label _ _) i = (ui,i)
-    addOrLabels ui i = (Label ("_"++show i) ui,i+1)
+        uj = mkJSON ui
 
 jsonEnumUI :: [String] -> UIJSON Int
 jsonEnumUI ss = UIJSON {
