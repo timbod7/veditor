@@ -88,3 +88,42 @@ instance HasUI StructTest3
      where
        toStruct (a,(b,(c,d))) = eVal (StructTest3 a b c d)
        fromStruct (StructTest3 a b c d) = (a,(b,(c,d)))
+
+data BinOp = Add | Sub | Mul | Div
+    deriving (Enum)
+
+instance HasUI BinOp
+  where
+    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI ["Add","Sub","Mul","Div"])
+
+data Expr = Literal Double
+          | BinOp BinOp Expr Expr
+          | If Expr Expr Expr
+
+instance HasUI Expr
+  where
+    mkUI = mapUI toExpr fromExpr
+        (   Label "literal" (readUI "double")
+        .+. Label "add" (mkUI .*. mkUI)
+        .+. Label "sub" (mkUI .*. mkUI)
+        .+. Label "mul" (mkUI .*. mkUI)
+        .+. Label "div" (mkUI .*. mkUI)
+        .+. Label "if"  (mkUI .*. mkUI .*. mkUI)
+        )
+      where
+        toExpr (Left v) = eVal (Literal v)
+        toExpr (Right (Left (e1,e2))) = eVal (BinOp Add e1 e2)
+        toExpr (Right (Right (Left (e1,e2)))) = eVal (BinOp Sub e1 e2) 
+        toExpr (Right (Right (Right (Left (e1,e2))))) = eVal (BinOp Mul e1 e2)
+        toExpr (Right (Right (Right (Right (Left (e1,e2)))))) = eVal (BinOp Div e1 e2)
+        toExpr (Right (Right (Right (Right (Right (e1,(e2,e3))))))) = eVal (If e1 e2 e3)
+
+        fromExpr (Literal v)       = Left v
+        fromExpr (BinOp Add e1 e2) = (Right . Left) (e1,e2)
+        fromExpr (BinOp Sub e1 e2) = (Right . Right . Left) (e1,e2)
+        fromExpr (BinOp Mul e1 e2) = (Right . Right . Right . Left) (e1,e2)
+        fromExpr (BinOp Div e1 e2) = (Right . Right . Right . Right . Left) (e1,e2)
+        fromExpr (If e1 e2 e3)     = (Right . Right . Right . Right . Right) (e1,(e2,e3))
+
+
+

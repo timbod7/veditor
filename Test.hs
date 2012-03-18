@@ -1,11 +1,14 @@
 module Test where
 
 import Graphics.UI.Gtk
+import qualified Data.Aeson as DA
+import qualified Data.ByteString.Lazy as L
 
 import Control.Monad
 
 import UI
 import GTK
+import JSON
 import UIExamples
 import ErrVal
 
@@ -35,12 +38,14 @@ testAll = do
     vbox <- vBoxNew False 5
     let addTest title uidef = do
         let uig = uiGTK uidef
+        let uij = uiJSON uidef
         button <- buttonNew
         set button [ buttonLabel := title ]
         dialog <- modalDialogNew title uig [dialogOK,dialogReset,dialogCancel]
         on button buttonActivated $ do
            mr <- md_run dialog
-           maybeM mr $ \v -> print v
+           maybeM mr $ \v -> do
+               L.putStrLn (DA.encode (uj_tojson uij v))
         containerAdd vbox button
 
     addTest "StructTest" (mkUI :: UI StructTest)
@@ -48,6 +53,7 @@ testAll = do
     addTest "UnionTest" (mkUI :: UI UnionTest)
     addTest "[StructTest]" listTest
     addTest "StructTest3" (mkUI :: UI StructTest3)
+    addTest "Expr" (mkUI :: UI Expr)
        
     set window [ containerChild := vbox ]
     widgetShowAll window
