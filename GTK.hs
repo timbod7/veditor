@@ -145,7 +145,8 @@ gtkOrUI :: UI a -> UI b -> UIGTK (Either a b)
 gtkOrUI uia uib = UIGTK "" $ \ctx -> do
     let ui = (OrUI uia uib)
     let labels = getLabels ui 
-    table <- tableNew 1 2 False
+    frame <- frameNew
+    table <- tableNew 1 1 False
     combo <- comboBoxNewText
     cref <- newIORef Map.empty
     on combo changed $ do
@@ -156,14 +157,16 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
             (Just a) -> a
         return ()
 
-    align <- alignmentNew 0 0 0 0
-    containerAdd align combo
-    tableAttachDefaults table align 0 1 0 1
+    frameSetLabelWidget frame combo
+    containerAdd frame table
     rowiv <- newIORef 0
     wref <- newIORef Nothing
     let ustate = UnionState table combo wref cref rowiv 
 
-    addChoices ustate ctx ui
+    gw <- addChoices ustate ctx ui
+    return gw { 
+        ui_widget = toWidget frame
+    }
 
   where
     getLabels :: UI a -> [String]
@@ -197,7 +200,7 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
             ui_reset = ui_reset gwa
                 ,
             ui_packWide = False,
-            ui_tableXAttach = [],
+            ui_tableXAttach = [Expand,Shrink,Fill],
             ui_tableYAttach = []
         } 
         
@@ -214,17 +217,18 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
         let showThisUI = do
               let wref = us_current us
               let table = us_table us
+              let attach w = tableAttach table w 0 1 0 1 [Expand,Fill] [Expand,Fill] 10 0
               gw <- delayGet dgw
               mw <- readIORef wref
               case mw of
                 Nothing -> do
-                  tableAttachDefaults table (ui_widget gw) 0 1 1 2
+                  attach (ui_widget gw)
                   widgetShowAll (ui_widget gw)
                   writeIORef wref (Just (i,(ui_widget gw)))
                 (Just (oi,w)) | oi == i -> return ()
                               | otherwise -> do
                   containerRemove table w
-                  tableAttachDefaults table (ui_widget gw) 0 2 1 2
+                  attach (ui_widget gw)
                   widgetShowAll (ui_widget gw)
                   writeIORef wref (Just (i,(ui_widget gw)))
               return gw
