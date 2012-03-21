@@ -32,6 +32,18 @@ readUI typestr = Entry fromString show
         [(a,"")] -> eVal a
         _ -> eErr ("Not a valid "++typestr)
 
+-- | A UI for an optional value of any type implemented Read and Show.
+maybeReadUI :: (Read a, Show a) => String -> UI (Maybe a)
+maybeReadUI typestr = Entry fromString toString
+  where
+    fromString "" = eVal Nothing
+    fromString s = case reads s of
+        [(a,"")] -> eVal (Just a)
+        _ -> eErr ("Not a valid "++typestr)
+
+    toString Nothing = ""
+    toString (Just a) = show a
+
 intUI :: UI Int
 intUI = readUI "Int"
 

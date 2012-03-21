@@ -14,9 +14,9 @@ data StructTest = StructTest {
 instance HasUI StructTest
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "v1"
-        .*. fieldUI "v2"
-        .*. Label "v3" (defaultUI 7 mkUI)
+        (   fieldUI "stringV"
+        .*. fieldUI "intV1"
+        .*. Label "intV2" (defaultUI 7 mkUI)
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest a b c)
@@ -24,16 +24,16 @@ instance HasUI StructTest
 
 data StructTest2 = StructTest2 {
     t_v4 :: String,
-    t_v5 :: Int,
+    t_v5 :: Maybe Int,
     t_v6 :: StructTest
 } deriving (Show)
 
 instance HasUI StructTest2
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "v1"
-        .*. fieldUI "v2"
-        .*. fieldUI "v3"
+        (   fieldUI "stringV"
+        .*. Label "maybeIntV" (maybeReadUI "Int")
+        .*. fieldUI "structV"
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest2 a b c)
@@ -48,10 +48,10 @@ data UnionTest = UT_V1 String
 instance HasUI UnionTest
   where
     mkUI = mapUI toUnion fromUnion 
-        (   fieldUI "v1"
-        .+. fieldUI "v2"
-        .+. fieldUI "v3"
-        .+. fieldUI "v4"
+        (   fieldUI "stringV"
+        .+. fieldUI "intV"
+        .+. fieldUI "structV"
+        .+. fieldUI "recUnionV"
         )
       where
         toUnion (Left v) =  eVal (UT_V1 v)
@@ -80,10 +80,10 @@ data StructTest3 = StructTest3 {
 instance HasUI StructTest3
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "v1"
-        .*. fieldUI "v2"
-        .*. fieldUI "v3"
-        .*. label "v4" (listUI show mkUI)
+        (   fieldUI "string"
+        .*. fieldUI "int"
+        .*. fieldUI "bool"
+        .*. label "struct list" (listUI show mkUI)
         )
      where
        toStruct (a,(b,(c,d))) = eVal (StructTest3 a b c d)

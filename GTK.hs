@@ -13,6 +13,7 @@ import Graphics.UI.Gtk
 import Control.Monad
 import Control.Applicative
 import Data.IORef
+import Data.Char
 import qualified Data.Map as Map
 
 import UI
@@ -39,7 +40,7 @@ data UIGTK a = UIGTK {
 
 uiGTK  :: UI a -> UIGTK a
 uiGTK (Entry fromString toString) = gtkEntry fromString toString 
-uiGTK (Label label ui) = (uiGTK ui){ui_label=label}
+uiGTK (Label label ui) = (uiGTK ui){ui_label=labelString label}
 uiGTK (MapUI fab fba ui) = gtkMapUI fab fba (uiGTK ui)
 uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
 uiGTK (EnumUI ss) = gtkEnumUI ss
@@ -74,7 +75,7 @@ gtkAndUI uia uib = UIGTK "" $ \ctx -> do
                 return ( (,) <$> ea <*> eb ),
             ui_reset = ui_reset gwa >> ui_reset gwb,
             ui_packWide = True,
-            ui_tableXAttach = [],
+            ui_tableXAttach = [Expand,Shrink,Fill],
             ui_tableYAttach = []
         } 
 
@@ -89,12 +90,13 @@ gtkAndUI uia uib = UIGTK "" $ \ctx -> do
           then do
             f <- frameNew
             frameSetLabel f (ui_label ui)
-            containerAdd f (ui_widget gw)
-            tableAttach table f 0 2 i (i+1) xattach yattach 0 0
+            w <- withBorder 10 (ui_widget gw)
+            containerAdd f w
+            tableAttach table f 0 2 i (i+1) xattach yattach 0 5
           else do
             label <- labelNew (Just (ui_label ui))
-            miscSetAlignment label 1 0
-            tableAttach table label 0 1 i (i+1) [] [] 0 0
+            miscSetAlignment label 0 0
+            tableAttach table label 0 1 i (i+1) [Fill] [Fill] 5 0
             tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
         return gw
 
@@ -382,7 +384,7 @@ data ModalDialog a = ModalDialog {
 modalDialogNew :: String -> UIGTK a -> [DialogButton a] -> IO (ModalDialog a)
 modalDialogNew title ui buttons = do
     dialog <- dialogNew
-    resultv <- newIORef undefined
+    resultv <- newIORef Nothing
     set dialog [ windowTitle := title ]
 
     -- Not sure how to pass an activate action in the context to
@@ -475,4 +477,18 @@ stockButton stockId size action = do
     set b [buttonRelief := ReliefNone]
     return b
 
+-- | Make a field name into a more human readable string.
+-- Replace '_' with space and insert spaces into camelcase.
+labelString :: String -> String
+labelString [] = []
+labelString (c1:c2:cs) | isLower c1 && isUpper c2 = c1 : ' ' : c2 : labelString cs
+labelString (c:cs) | c == '_'   = ' ' : labelString cs
+                   | otherwise  = c : labelString cs 
 
+withBorder n w = do
+    align <- alignmentNew 0 0 1 1
+    containerAdd align w
+    containerSetBorderWidth align n
+    return align
+    
+    
