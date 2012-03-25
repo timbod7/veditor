@@ -14,9 +14,9 @@ data StructTest = StructTest {
 instance HasUI StructTest
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "stringV"
-        .*. fieldUI "intV1"
-        .*. Label "intV2" (defaultUI 7 mkUI)
+        (   label "stringV" mkUI
+        .*. label "intV1"   mkUI
+        .*. label "intV2"   (defaultUI 7 mkUI)
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest a b c)
@@ -31,9 +31,9 @@ data StructTest2 = StructTest2 {
 instance HasUI StructTest2
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "stringV"
-        .*. Label "maybeIntV" (maybeReadUI "Int")
-        .*. fieldUI "structV"
+        (   label "stringV" mkUI
+        .*. label "maybeIntV" (maybeReadUI "Int")
+        .*. label "structV" mkUI
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest2 a b c)
@@ -47,22 +47,21 @@ data UnionTest = UT_V1 String
 
 instance HasUI UnionTest
   where
-    mkUI = mapUI toUnion fromUnion 
-        (   fieldUI "stringV"
-        .+. fieldUI "intV"
-        .+. fieldUI "structV"
-        .+. fieldUI "recUnionV"
+    mkUI = mapUI (eVal.toUnion) fromUnion 
+        (   label "stringV" mkUI
+        .+. label "intV" mkUI
+        .+. label "structV" mkUI
+        .+. label "recUnionV" mkUI
         )
       where
-        toUnion (Left v) =  eVal (UT_V1 v)
-        toUnion (Right (Left v)) =  eVal (UT_V2 v)
-        toUnion (Right (Right (Left v))) =  eVal (UT_V3 v)
-        toUnion (Right (Right (Right v))) =  eVal (UT_V4 v)
+        toUnion = either UT_V1
+                $ either UT_V2
+                $ either UT_V3 UT_V4
 
         fromUnion (UT_V1 v) = Left v
-        fromUnion (UT_V2 v) = Right (Left v)
-        fromUnion (UT_V3 v) = Right (Right (Left v))
-        fromUnion (UT_V4 v) = (Right (Right (Right v)))
+        fromUnion (UT_V2 v) = (Right . Left) v
+        fromUnion (UT_V3 v) = (Right . Right . Left) v
+        fromUnion (UT_V4 v) = (Right . Right . Right) v
 
 listTest :: UI [StructTest]
 listTest = defaultUI defv $ listUI show mkUI
@@ -80,9 +79,9 @@ data StructTest3 = StructTest3 {
 instance HasUI StructTest3
   where
     mkUI = mapUI toStruct fromStruct
-        (   fieldUI "string"
-        .*. fieldUI "int"
-        .*. fieldUI "bool"
+        (   label "string" mkUI
+        .*. label "int" mkUI
+        .*. label "bool" mkUI
         .*. label "struct list" (listUI show mkUI)
         )
      where
@@ -102,21 +101,28 @@ data Expr = Literal Double
 
 instance HasUI Expr
   where
-    mkUI = mapUI toExpr fromExpr
-        (   Label "literal" (readUI "double")
-        .+. Label "add" (mkUI .*. mkUI)
-        .+. Label "sub" (mkUI .*. mkUI)
-        .+. Label "mul" (mkUI .*. mkUI)
-        .+. Label "div" (mkUI .*. mkUI)
-        .+. Label "if"  (mkUI .*. mkUI .*. mkUI)
+    mkUI = mapUI (eVal.toExpr) fromExpr
+        (   label "literal" (readUI "double")
+        .+. label "add" (mkUI .*. mkUI)
+        .+. label "sub" (mkUI .*. mkUI)
+        .+. label "mul" (mkUI .*. mkUI)
+        .+. label "div" (mkUI .*. mkUI)
+        .+. label "if"  (mkUI .*. mkUI .*. mkUI)
         )
       where
-        toExpr (Left v) = eVal (Literal v)
-        toExpr (Right (Left (e1,e2))) = eVal (BinOp Add e1 e2)
-        toExpr (Right (Right (Left (e1,e2)))) = eVal (BinOp Sub e1 e2) 
-        toExpr (Right (Right (Right (Left (e1,e2))))) = eVal (BinOp Mul e1 e2)
-        toExpr (Right (Right (Right (Right (Left (e1,e2)))))) = eVal (BinOp Div e1 e2)
-        toExpr (Right (Right (Right (Right (Right (e1,(e2,e3))))))) = eVal (If e1 e2 e3)
+        -- toExpr (Left v) = eVal (Literal v)
+        -- toExpr (Right (Left (e1,e2))) = eVal (BinOp Add e1 e2)
+        -- toExpr (Right (Right (Left (e1,e2)))) = eVal (BinOp Sub e1 e2) 
+        -- toExpr (Right (Right (Right (Left (e1,e2))))) = eVal (BinOp Mul e1 e2)
+        -- toExpr (Right (Right (Right (Right (Left (e1,e2)))))) = eVal (BinOp Div e1 e2)
+        -- toExpr (Right (Right (Right (Right (Right (e1,(e2,e3))))))) = eVal (If e1 e2 e3)
+
+        toExpr = either Literal
+               $ either (\(e1,e2) -> BinOp Add e1 e2)
+               $ either (\(e1,e2) -> BinOp Sub e1 e2)
+               $ either (\(e1,e2) -> BinOp Mul e1 e2)
+               $ either (\(e1,e2) -> BinOp Div e1 e2)
+                        (\(e1,(e2,e3)) -> If e1 e2 e3)
 
         fromExpr (Literal v)       = Left v
         fromExpr (BinOp Add e1 e2) = (Right . Left) (e1,e2)
