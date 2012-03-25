@@ -39,9 +39,9 @@ data UIGTK a = UIGTK {
 }
 
 uiGTK  :: UI a -> UIGTK a
-uiGTK (Entry fromString toString) = gtkEntry fromString toString 
+uiGTK (Entry (BiMap fromString toString)) = gtkEntry fromString toString 
 uiGTK (Label label ui) = (uiGTK ui){ui_label=labelString label}
-uiGTK (MapUI fab fba ui) = gtkMapUI fab fba (uiGTK ui)
+uiGTK (MapUI (BiMap fab fba) ui) = gtkMapUI fab fba (uiGTK ui)
 uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
 uiGTK (EnumUI ss) = gtkEnumUI ss
 uiGTK (ListUI toString ui) = gtkListUI toString (uiGTK ui)

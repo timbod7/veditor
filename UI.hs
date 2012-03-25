@@ -4,8 +4,13 @@ module UI where
 
 import ErrVal
 
+data BiMap a b = BiMap {
+    m_aeb :: a -> ErrVal b,
+    m_ba :: b -> a
+}
+
 data UI a where
-    Entry :: (String -> ErrVal a) -> (a -> String) -> UI a
+    Entry :: BiMap String a -> UI a
     Label :: String -> UI a -> UI a
 
     AndUI :: (UI a) -> (UI b) -> UI (a,b)
@@ -16,17 +21,17 @@ data UI a where
     ListUI :: (a->String) -> UI a -> UI [a]
 
     -- | Convert a UI over a type a, to a UI over a type b, given
-    -- two conversion functions.
-    MapUI :: (a -> ErrVal b) -> (b -> a) -> UI a -> UI b
+    -- the necessary mapping
+    MapUI :: BiMap a b -> UI a -> UI b
 
     DefaultUI :: a -> UI a -> UI a
 
 stringUI :: UI String
-stringUI = Entry eVal id
+stringUI = Entry (BiMap eVal id)
 
 -- | A UI for any type implemented Read and Show.
 readUI :: (Read a, Show a) => String -> UI a
-readUI typestr = Entry fromString show 
+readUI typestr = Entry (BiMap fromString show)
   where
     fromString s = case reads s of
         [(a,"")] -> eVal a
@@ -34,7 +39,7 @@ readUI typestr = Entry fromString show
 
 -- | A UI for an optional value of any type implemented Read and Show.
 maybeReadUI :: (Read a, Show a) => String -> UI (Maybe a)
-maybeReadUI typestr = Entry fromString toString
+maybeReadUI typestr = Entry (BiMap fromString toString)
   where
     fromString "" = eVal Nothing
     fromString s = case reads s of
@@ -48,7 +53,7 @@ intUI :: UI Int
 intUI = readUI "Int"
 
 boolUI :: UI Bool
-boolUI = MapUI (eVal.toEnum) fromEnum (EnumUI ["False","True"])
+boolUI = MapUI (BiMap (eVal.toEnum) fromEnum) (EnumUI ["False","True"])
    
 
 (.*.) = AndUI
@@ -57,7 +62,7 @@ boolUI = MapUI (eVal.toEnum) fromEnum (EnumUI ["False","True"])
 infixr 5 .*.
 infixr 5 .+.
 
-mapUI = MapUI
+mapUI aeb ba = MapUI (BiMap aeb ba)
 label = Label
 defaultUI = DefaultUI
 listUI = ListUI

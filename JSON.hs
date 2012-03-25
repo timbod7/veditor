@@ -25,9 +25,9 @@ uiJSON :: UI a -> UIJSON a
 uiJSON = mkJSON . addLabels
 
 mkJSON :: UI a -> UIJSON a
-mkJSON (Entry fromString toString) = jsonEntry fromString toString
+mkJSON (Entry (BiMap fromString toString)) = jsonEntry fromString toString
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
-mkJSON (MapUI fab fba ui) = jsonMapUI fab fba (mkJSON ui)
+mkJSON (MapUI (BiMap fab fba) ui) = jsonMapUI fab fba (mkJSON ui)
 mkJSON (DefaultUI a ui) = (mkJSON ui){uj_default=Just a}
 mkJSON (EnumUI ss) = jsonEnumUI ss
 mkJSON (ListUI _ ui) = jsonListUI (mkJSON ui)
@@ -38,7 +38,7 @@ mkJSON (OrUI uia uib) = jsonOrUI uia uib
 -- which don't already have them
 addLabels :: UI a -> UI a
 addLabels (Label label ui) = Label label (addLabels ui)
-addLabels (MapUI fab fba ui) = MapUI fab fba (addLabels ui)
+addLabels (MapUI bm ui) = MapUI bm (addLabels ui)
 addLabels (DefaultUI a ui) = DefaultUI a (addLabels ui)
 addLabels (ListUI sf ui) = ListUI sf (addLabels ui)
 addLabels ui@(AndUI uia uib) = fst (addAndLabels ui 0)
