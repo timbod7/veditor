@@ -9,28 +9,28 @@ data BiMap a b = BiMap {
     m_ba :: b -> a
 }
 
-data UI a where
-    Entry :: BiMap String a -> UI a
-    Label :: String -> UI a -> UI a
+data UI e a where
+    Entry :: BiMap String a -> UI e a
+    Label :: String -> UI e a -> UI e a
 
-    AndUI :: (UI a) -> (UI b) -> UI (a,b)
-    OrUI  :: (UI a) -> (UI b) -> UI (Either a b)
+    AndUI :: (UI e a) -> (UI e b) -> UI e (a,b)
+    OrUI  :: (UI e a) -> (UI e b) -> UI e (Either a b)
 
-    EnumUI :: [String] -> UI Int
+    EnumUI :: (e -> [String]) -> UI e Int
 
-    ListUI :: (a->String) -> UI a -> UI [a]
+    ListUI :: (a->String) -> UI e a -> UI e [a]
 
     -- | Convert a UI over a type a, to a UI over a type b, given
     -- the necessary mapping
-    MapUI :: BiMap a b -> UI a -> UI b
+    MapUI :: BiMap a b -> UI e a -> UI e b
 
-    DefaultUI :: a -> UI a -> UI a
+    DefaultUI :: a -> UI e a -> UI e a
 
-stringUI :: UI String
+stringUI :: UI e String
 stringUI = Entry (BiMap eVal id)
 
 -- | A UI for any type implemented Read and Show.
-readUI :: (Read a, Show a) => String -> UI a
+readUI :: (Read a, Show a) => String -> UI e a
 readUI typestr = Entry (BiMap fromString show)
   where
     fromString s = case reads s of
@@ -38,7 +38,7 @@ readUI typestr = Entry (BiMap fromString show)
         _ -> eErr ("Not a valid "++typestr)
 
 -- | A UI for an optional value of any type implemented Read and Show.
-maybeReadUI :: (Read a, Show a) => String -> UI (Maybe a)
+maybeReadUI :: (Read a, Show a) => String -> UI e (Maybe a)
 maybeReadUI typestr = Entry (BiMap fromString toString)
   where
     fromString "" = eVal Nothing
@@ -49,11 +49,11 @@ maybeReadUI typestr = Entry (BiMap fromString toString)
     toString Nothing = ""
     toString (Just a) = show a
 
-intUI :: UI Int
+intUI :: UI e Int
 intUI = readUI "Int"
 
-boolUI :: UI Bool
-boolUI = MapUI (BiMap (eVal.toEnum) fromEnum) (EnumUI ["False","True"])
+boolUI :: UI e Bool
+boolUI = MapUI (BiMap (eVal.toEnum) fromEnum) (EnumUI (const ["False","True"]))
    
 
 (.*.) = AndUI
@@ -67,11 +67,11 @@ label = Label
 defaultUI = DefaultUI
 listUI = ListUI
 
-fieldUI :: (HasUI a) => String -> UI a
+fieldUI :: (HasUI a) => String -> UI e a
 fieldUI label = Label label mkUI
 
 class HasUI a where
-  mkUI :: UI a
+  mkUI :: UI e a
 
 instance HasUI Int where
   mkUI = readUI "Int"

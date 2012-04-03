@@ -63,7 +63,7 @@ instance HasUI UnionTest
         fromUnion (UT_V3 v) = (Right . Right . Left) v
         fromUnion (UT_V4 v) = (Right . Right . Right) v
 
-listTest :: UI [StructTest]
+listTest :: UI () [StructTest]
 listTest = defaultUI defv $ listUI show mkUI
   where
    defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]
@@ -93,7 +93,7 @@ data BinOp = Add | Sub | Mul | Div
 
 instance HasUI BinOp
   where
-    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI ["Add","Sub","Mul","Div"])
+    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI (const ["Add","Sub","Mul","Div"]))
 
 data Expr = Literal Double
           | BinOp BinOp Expr Expr

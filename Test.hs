@@ -20,7 +20,7 @@ testui title uidef = do
     button <- buttonNew
     set button [ buttonLabel := "Go" ]
         
-    dialog <- modalDialogNew title uidef [dialogOK,dialogReset,dialogCancel]
+    dialog <- modalDialogNew () title uidef [dialogOK,dialogReset,dialogCancel]
 
     on button buttonActivated $ do
        mr <- md_run dialog
@@ -38,22 +38,22 @@ testAll = do
     vbox <- vBoxNew False 5
     let addTest title uidef = do
         let uig = uiGTK uidef
-        let uij = uiJSON uidef
+        let uij = uiJSON () uidef
         button <- buttonNew
         set button [ buttonLabel := title ]
-        dialog <- modalDialogNew title uig [dialogOK,dialogReset,dialogCancel]
+        dialog <- modalDialogNew () title uig [dialogOK,dialogReset,dialogCancel]
         on button buttonActivated $ do
            mr <- md_run dialog
            maybeM mr $ \v -> do
                L.putStrLn (DA.encode (uj_tojson uij v))
         containerAdd vbox button
 
-    addTest "StructTest" (mkUI :: UI StructTest)
-    addTest "StructTest2" (mkUI :: UI StructTest2)
-    addTest "UnionTest" (mkUI :: UI UnionTest)
+    addTest "StructTest" (mkUI :: UI () StructTest)
+    addTest "StructTest2" (mkUI :: UI () StructTest2)
+    addTest "UnionTest" (mkUI :: UI () UnionTest)
     addTest "[StructTest]" listTest
-    addTest "StructTest3" (mkUI :: UI StructTest3)
-    addTest "Expr" (mkUI :: UI Expr)
+    addTest "StructTest3" (mkUI :: UI () StructTest3)
+    addTest "Expr" (mkUI :: UI () Expr)
        
     set window [ containerChild := vbox ]
     widgetShowAll window
