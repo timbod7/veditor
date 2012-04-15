@@ -41,7 +41,9 @@ data UIGTK e a = UIGTK {
     ui_create :: (GTKCTX e -> IO (GTKWidget e a))
 }
 
-uiGTK  :: UI e a -> UIGTK e a
+type UIE e a = UI (IOE e) a
+
+uiGTK  :: UI (IOE e) a -> UIGTK e a
 uiGTK (Entry (BiMap fromString toString)) = gtkEntry fromString toString 
 uiGTK (Label label ui) = (uiGTK ui){ui_label=labelString label}
 uiGTK (MapUI (BiMap fab fba) ui) = gtkMapUI fab fba (uiGTK ui)
@@ -51,7 +53,7 @@ uiGTK (ListUI toString ui) = gtkListUI toString (uiGTK ui)
 uiGTK (AndUI uia uib) = gtkAndUI uia uib
 uiGTK (OrUI uia uib) = gtkOrUI uia uib
 
-gtkAndUI :: (UI e a) -> (UI e b) -> UIGTK e (a,b)
+gtkAndUI :: (UIE e a) -> (UIE e b) -> UIGTK e (a,b)
 gtkAndUI uia uib = UIGTK "" $ \ctx -> do
     let ui = (AndUI uia uib)
     let nRows = countFields ui
@@ -59,11 +61,11 @@ gtkAndUI uia uib = UIGTK "" $ \ctx -> do
     rowiv <- newIORef 0
     addFields table rowiv ctx ui 
   where
-    countFields :: UI e a -> Int
+    countFields :: UIE e a -> Int
     countFields (AndUI uia uib) = countFields uia + countFields uib
     countFields _ = 1
 
-    addFields :: Table -> IORef Int -> GTKCTX e -> UI e a -> IO (GTKWidget e a)
+    addFields :: Table -> IORef Int -> GTKCTX e -> UIE e a -> IO (GTKWidget e a)
     addFields table rowiv ctx (AndUI uia uib) = do
         gwa <- addFields table rowiv ctx uia
         gwb <- addFields table rowiv ctx uib
@@ -149,7 +151,7 @@ data UnionState e = UnionState {
     us_i :: IORef Int
 }
 
-gtkOrUI :: UI e a -> UI e b -> UIGTK e (Either a b)
+gtkOrUI :: UIE e a -> UIE e b -> UIGTK e (Either a b)
 gtkOrUI uia uib = UIGTK "" $ \ctx -> do
     let ui = (OrUI uia uib)
     let labels = getLabels ui 
@@ -178,7 +180,7 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
     }
 
   where
-    getLabels :: UI e a -> [String]
+    getLabels :: UIE e a -> [String]
     getLabels (OrUI uia uib) = getLabels uia ++ getLabels uib
     getLabels ui = [ui_label (uiGTK ui)]
 
@@ -192,7 +194,7 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
         active <- readIORef (us_active us)
         sequence_ [ refresh env | (i,(w,reset,refresh)) <- Map.toList active ]
 
-    addChoices :: UnionState e -> GTKCTX e -> UI e a -> IO (GTKWidget e a)
+    addChoices :: UnionState e -> GTKCTX e -> UIE e a -> IO (GTKWidget e a)
     addChoices us ctx (OrUI uia uib) = do
         gwa <- addChoices us ctx uia
         ileft <- readIORef (us_i us)
@@ -349,8 +351,8 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
           ui_tableYAttach = [Expand,Shrink,Fill]
         } 
 
-gtkEnumUI :: (e -> [String]) -> UIGTK e Int
-gtkEnumUI labelsf = UIGTK "" $ \ctx -> do
+gtkEnumUI :: IOE e [String] -> UIGTK e Int
+gtkEnumUI (IOE labelsf) = UIGTK "" $ \ctx -> do
     combo <- comboBoxNewText
     align <- alignmentNew 0 0 0 0
     containerAdd align combo
@@ -360,7 +362,7 @@ gtkEnumUI labelsf = UIGTK "" $ \ctx -> do
           comboBoxSetActive combo 0
           forM_ ls $ \label -> comboBoxAppendText combo label
 
-        initialLabels = labelsf (cs_initialEnv ctx)
+    initialLabels <- labelsf (cs_initialEnv ctx)
 
     setLabels initialLabels
 
@@ -369,7 +371,7 @@ gtkEnumUI labelsf = UIGTK "" $ \ctx -> do
           ui_set = \vs -> (comboBoxSetActive combo vs),
           ui_get = fmap eVal (comboBoxGetActive combo),
           ui_reset = comboBoxSetActive combo 0,
-          ui_refreshEnv=setLabels.labelsf,
+          ui_refreshEnv= \e -> labelsf e >>= setLabels,
           ui_packWide = False,
           ui_tableXAttach = [Expand,Shrink,Fill],
           ui_tableYAttach = []

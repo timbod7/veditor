@@ -37,8 +37,8 @@ testAll = do
     set window [ containerBorderWidth := 10, windowTitle := "Test UI" ]
     vbox <- vBoxNew False 5
     let addTest title uidef = do
-        let uig = uiGTK uidef
-        let uij = uiJSON () uidef
+        let uig = uiGTK (ioFromConstUI uidef)
+        let uij = uiJSON uidef
         button <- buttonNew
         set button [ buttonLabel := title ]
         dialog <- modalDialogNew () title uig [dialogOK,dialogReset,dialogCancel]
@@ -48,12 +48,12 @@ testAll = do
                L.putStrLn (DA.encode (uj_tojson uij v))
         containerAdd vbox button
 
-    addTest "StructTest" (mkUI :: UI () StructTest)
-    addTest "StructTest2" (mkUI :: UI () StructTest2)
-    addTest "UnionTest" (mkUI :: UI () UnionTest)
+    addTest "StructTest" (mkUI :: UI ConstE StructTest)
+    addTest "StructTest2" (mkUI :: UI ConstE StructTest2)
+    addTest "UnionTest" (mkUI :: UI ConstE UnionTest)
     addTest "[StructTest]" listTest
-    addTest "StructTest3" (mkUI :: UI () StructTest3)
-    addTest "Expr" (mkUI :: UI () Expr)
+    addTest "StructTest3" (mkUI :: UI ConstE StructTest3)
+    addTest "Expr" (mkUI :: UI ConstE Expr)
        
     set window [ containerChild := vbox ]
     widgetShowAll window

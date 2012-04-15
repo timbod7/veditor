@@ -21,22 +21,22 @@ data UIJSON a = UIJSON {
         uj_fromjson :: DA.Value -> ErrVal a
     }
 
-uiJSON :: e -> UI e a -> UIJSON a
-uiJSON e = mkJSON.addLabels.fillEnv  e
+uiJSON :: UI ConstE a -> UIJSON a
+uiJSON ui = mkJSON (addLabels ui)
 
-mkJSON :: UI () a -> UIJSON a
+mkJSON :: UI ConstE a -> UIJSON a
 mkJSON (Entry (BiMap fromString toString)) = jsonEntry fromString toString
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
 mkJSON (MapUI (BiMap fab fba) ui) = jsonMapUI fab fba (mkJSON ui)
 mkJSON (DefaultUI a ui) = (mkJSON ui){uj_default=Just a}
-mkJSON (EnumUI ssf) = jsonEnumUI (ssf ()) 
+mkJSON (EnumUI (ConstE ss)) = jsonEnumUI ss
 mkJSON (ListUI _ ui) = jsonListUI (mkJSON ui)
 mkJSON (AndUI uia uib) = jsonAndUI uia uib
 mkJSON (OrUI uia uib) = jsonOrUI uia uib
 
 -- | Recursively add numeric labels to and/or branches
 -- which don't already have them
-addLabels :: UI () a -> UI () a
+addLabels :: UI ConstE a -> UI ConstE a
 addLabels (Label label ui) = Label label (addLabels ui)
 addLabels (MapUI bm ui) = MapUI bm (addLabels ui)
 addLabels (DefaultUI a ui) = DefaultUI a (addLabels ui)
@@ -45,7 +45,7 @@ addLabels ui@(AndUI uia uib) = fst (addAndLabels ui 0)
 addLabels ui@(OrUI uia uib) = fst (addOrLabels ui 0)
 addLabels ui = ui
 
-addAndLabels :: UI () a -> Int -> (UI () a,Int)
+addAndLabels :: UI ConstE a -> Int -> (UI ConstE a,Int)
 addAndLabels (AndUI uia uib) i0 = 
      let (uia',i1) = addAndLabels uia i0
          (uib',i2) = addAndLabels uib i1
@@ -53,23 +53,13 @@ addAndLabels (AndUI uia uib) i0 =
 addAndLabels ui@(Label _ _) i = (addLabels ui,i)
 addAndLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
 
-addOrLabels :: UI () a -> Int -> (UI () a,Int)
+addOrLabels :: UI ConstE a -> Int -> (UI ConstE a,Int)
 addOrLabels (OrUI uia uib) i0 = 
     let (uia',i1) = addOrLabels uia i0
         (uib',i2) = addOrLabels uib i1
     in (OrUI uia' uib',i2)
 addOrLabels ui@(Label _ _) i = (addLabels ui,i)
 addOrLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
-
-fillEnv :: e -> UI e a -> UI () a
-fillEnv e (Entry bm) = Entry bm
-fillEnv e (Label s ui) = Label s (fillEnv e ui)
-fillEnv e (MapUI bm ui) = MapUI bm (fillEnv e ui)
-fillEnv e (DefaultUI a ui) = DefaultUI a (fillEnv e ui)
-fillEnv e (ListUI sf ui) = ListUI sf (fillEnv e ui)
-fillEnv e (AndUI uia uib) = AndUI (fillEnv e uia) (fillEnv e uib)
-fillEnv e (OrUI uia uib) = OrUI (fillEnv e uia) (fillEnv e uib)
-fillEnv e (EnumUI ssf) = EnumUI (const (ssf e))
 
 jsonEntry :: (String -> ErrVal a) -> (a -> String) -> UIJSON a
 jsonEntry fromString toString = UIJSON {
@@ -101,7 +91,7 @@ jsonListUI uj = UIJSON {
         _ -> eErr "expected a json array"
 }
 
-jsonAndUI :: UI () a -> UI () b -> UIJSON (a,b)
+jsonAndUI :: UI ConstE a -> UI ConstE b -> UIJSON (a,b)
 jsonAndUI uia uib = UIJSON {
     uj_label= Text.empty,
     uj_default=Nothing,
@@ -113,13 +103,13 @@ jsonAndUI uia uib = UIJSON {
   where
     ui = AndUI uia uib
 
-    tojson :: UI () a -> a -> DA.Object
+    tojson :: UI ConstE a -> a -> DA.Object
     tojson (AndUI uia uib) (a,b)= tojson uia a `HMap.union` tojson uib b
     tojson ui a =
         let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
-    fromjson :: DA.Object -> UI () a -> ErrVal a
+    fromjson :: DA.Object -> UI ConstE a -> ErrVal a
     fromjson o (AndUI uia uib) = (,) <$> fromjson o uia <*> fromjson o uib
     fromjson o ui = 
         let uj = mkJSON ui
@@ -140,21 +130,21 @@ jsonOrUI uia uib = UIJSON {
   where
     ui = OrUI uia uib
 
-    tojson :: UI () a -> a -> DA.Object
+    tojson :: UI ConstE a -> a -> DA.Object
     tojson (OrUI uia uib) (Left a) = tojson uia a
     tojson (OrUI uia uib) (Right b) = tojson uib b
     tojson ui a = 
         let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
-    fromjson :: DA.Object -> UI () a -> ErrVal a
+    fromjson :: DA.Object -> UI ConstE a -> ErrVal a
     fromjson o ui = case HMap.toList o of
         [(k,v)] -> case fromjson1 k v ui of
             Nothing -> eErr ("Illegal union key " ++ Text.unpack k)
             (Just v) -> v
         _ -> eErr "Union must be a single key value pair"
 
-    fromjson1 :: Text.Text -> DA.Value -> UI () a -> (Maybe (ErrVal a))
+    fromjson1 :: Text.Text -> DA.Value -> UI ConstE a -> (Maybe (ErrVal a))
     fromjson1 l v (OrUI uia uib) = case fromjson1 l v uia of
         Nothing -> case fromjson1 l v uib of
             Nothing -> Nothing
