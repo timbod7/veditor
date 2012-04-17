@@ -449,6 +449,7 @@ modalDialogNew e title ui buttons = do
     widgetShowAll hbox
 
     let runDialog = do
+        ui_refreshEnv gw e
         widgetShow dialog
         r <- dialogRun dialog
         v <- readIORef resultv
