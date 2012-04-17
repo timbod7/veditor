@@ -101,7 +101,7 @@ gtkAndUI uia uib = UIGTK "" $ \ctx -> do
             tableAttach table f 0 2 i (i+1) xattach yattach 0 5
           else do
             label <- labelNew (Just (ui_label ui))
-            miscSetAlignment label 0 0
+            miscSetAlignment label 0 0.5
             tableAttach table label 0 1 i (i+1) [Fill] [Fill] 5 0
             tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
         return gw
