@@ -359,8 +359,9 @@ gtkEnumUI (IOE labelsf) = UIGTK "" $ \ctx -> do
 
     let setLabels ls = do
           comboBoxGetModelText combo >>= listStoreClear
-          comboBoxSetActive combo 0
+          comboBoxAppendText combo " -select- "
           forM_ ls $ \label -> comboBoxAppendText combo label
+          comboBoxSetActive combo 0
 
     initialLabels <- labelsf (cs_initialEnv ctx)
 
@@ -368,8 +369,12 @@ gtkEnumUI (IOE labelsf) = UIGTK "" $ \ctx -> do
 
     return GTKWidget {
           ui_widget = toWidget align,
-          ui_set = \vs -> (comboBoxSetActive combo vs),
-          ui_get = fmap eVal (comboBoxGetActive combo),
+          ui_set = \vs -> (comboBoxSetActive combo (vs+1)),
+          ui_get = do
+              i <- comboBoxGetActive combo
+              if i == 0 then return (eErr "No input selected")
+                        else return (eVal (i-1))
+              ,
           ui_reset = comboBoxSetActive combo 0,
           ui_refreshEnv= \e -> labelsf e >>= setLabels,
           ui_packWide = False,
