@@ -90,7 +90,7 @@ instance HasUI Bool where
 ioeGet :: IOE e a -> e -> IO (ConstE a)
 ioeGet (IOE fa) e = fa e >>= return.ConstE
 
-ioFromConstUI :: UI ConstE a -> (UI (IOE e)  a)
+ioFromConstUI :: UI ConstE a -> UI (IOE e) a
 ioFromConstUI (Entry bm) = Entry bm
 ioFromConstUI (Label s ui) = Label s (ioFromConstUI ui)
 ioFromConstUI (AndUI ui1 ui2) = AndUI (ioFromConstUI ui1) (ioFromConstUI ui2)

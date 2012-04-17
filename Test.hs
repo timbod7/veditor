@@ -36,24 +36,29 @@ testAll = do
     onDestroy window mainQuit
     set window [ containerBorderWidth := 10, windowTitle := "Test UI" ]
     vbox <- vBoxNew False 5
-    let addTest title uidef = do
-        let uig = uiGTK (ioFromConstUI uidef)
-        let uij = uiJSON uidef
+    let
+      addTest :: String -> e -> UI (IOE e) a -> IO ()
+      addTest title e uidef = do
+        let uig = uiGTK uidef
         button <- buttonNew
         set button [ buttonLabel := title ]
-        dialog <- modalDialogNew () title uig [dialogOK,dialogReset,dialogCancel]
+        dialog <- modalDialogNew e title uig [dialogOK,dialogReset,dialogCancel]
         on button buttonActivated $ do
+           uidef' <- snapshotUI e uidef
            mr <- md_run dialog
            maybeM mr $ \v -> do
-               L.putStrLn (DA.encode (uj_tojson uij v))
+               L.putStrLn (DA.encode (uj_tojson (uiJSON uidef') v))
         containerAdd vbox button
 
-    addTest "StructTest" (mkUI :: UI ConstE StructTest)
-    addTest "StructTest2" (mkUI :: UI ConstE StructTest2)
-    addTest "UnionTest" (mkUI :: UI ConstE UnionTest)
-    addTest "[StructTest]" listTest
-    addTest "StructTest3" (mkUI :: UI ConstE StructTest3)
-    addTest "Expr" (mkUI :: UI ConstE Expr)
+      addConstTest title uidef = addTest title () (ioFromConstUI uidef)
+
+    addConstTest "StructTest" (mkUI :: UI ConstE StructTest)
+    addConstTest "StructTest2" (mkUI :: UI ConstE StructTest2)
+    addConstTest "UnionTest" (mkUI :: UI ConstE UnionTest)
+    addConstTest "[StructTest]" listTest
+    addConstTest "StructTest3" (mkUI :: UI ConstE StructTest3)
+    addConstTest "Expr" (mkUI :: UI ConstE Expr)
+    addTest "EnvStruct" "/tmp" envStructUI
        
     set window [ containerChild := vbox ]
     widgetShowAll window

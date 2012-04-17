@@ -2,6 +2,12 @@
 
 module UIExamples where
 
+import System.FilePath
+import System.Directory
+import System.Posix
+import Control.Monad
+import Control.Applicative
+
 import UI
 import ErrVal
 
@@ -131,5 +137,35 @@ instance HasUI Expr
         fromExpr (BinOp Div e1 e2) = (Right . Right . Right . Right . Left) (e1,e2)
         fromExpr (If e1 e2 e3)     = (Right . Right . Right . Right . Right) (e1,(e2,e3))
 
+----------------------------------------------------------------------
 
+type UserCode = Int
+type RoleCode = Int
 
+data EnvStruct = EnvStruct {
+    user :: UserCode,
+    role :: RoleCode
+}
+
+userCodeUI, roleCodeUI :: UI (IOE FilePath) Int
+userCodeUI = EnumUI (IOE (dirContents "users"))
+roleCodeUI = EnumUI (IOE (dirContents "roles"))
+
+envStructUI :: UI (IOE FilePath) EnvStruct
+envStructUI = mapUI toStruct fromStruct
+    (  label "user" userCodeUI
+    .*. label "role" roleCodeUI
+    )
+      where
+        toStruct (a,b) = eVal (EnvStruct a b)
+        fromStruct (EnvStruct a b) = (a,b)
+
+dirContents :: String -> FilePath -> IO [String]
+dirContents subdir root = do
+       putStrLn ("Reading enums from " ++ dir)
+       dirExists <- fileExist dir
+       if dirExists then filterM isRegFile =<< getDirectoryContents dir
+                    else return []
+   where
+     isRegFile fp = fmap isRegularFile (getFileStatus (combine dir fp))
+     dir = combine root subdir
