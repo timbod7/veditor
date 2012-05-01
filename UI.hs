@@ -4,31 +4,49 @@ module UI where
 
 import ErrVal
 
+-- | A mapping between two types, where the "forward" direction
+-- can fail with an error
 data BiMap a b = BiMap {
     m_aeb :: a -> ErrVal b,
     m_ba :: b -> a
 }
 
-newtype ConstE a = ConstE a
-newtype IOE e a = IOE (e -> IO a)
-
+-- | A GADT describing abstracted, composable user interfaces for manipulating
+-- a value of type a. e is a type constructor specifing how UI specific values
+-- may be possibly obtained from an environment.
 data UI e a where
+    -- | A UI String field. The BiMap describes how to map the string
+    -- to the UI type.
     Entry :: BiMap String a -> UI e a
+
+    -- | Annotate a UI with a text label
     Label :: String -> UI e a -> UI e a
 
+    -- | A "product" UI that combines values from two other UIs
     AndUI :: (UI e a) -> (UI e b) -> UI e (a,b)
+
+    -- | A "sum" UI that captures the value from either of two other UIs
     OrUI  :: (UI e a) -> (UI e b) -> UI e (Either a b)
 
+    -- | A UI for manipulating an enumeration. A list of label string are supplied,
+    -- the UI value is the integer index of the selected label.
     EnumUI :: e [String] -> UI e Int
 
+    -- | A UI for manipulating  a list of values. The supplied function lets the
+    -- the UI display the list items to the user (eg for selection).
     ListUI :: (a->String) -> UI e a -> UI e [a]
 
     -- | Convert a UI over a type a, to a UI over a type b, given
     -- the necessary mapping
     MapUI :: BiMap a b -> UI e a -> UI e b
 
+    -- | Annotate a UI with a default value
     DefaultUI :: a -> UI e a -> UI e a
 
+newtype ConstE a = ConstE a
+newtype IOE e a = IOE (e -> IO a)
+
+-- | A UI for a simple string
 stringUI :: UI e String
 stringUI = Entry (BiMap eVal id)
 
@@ -67,9 +85,16 @@ x = EnumUI (ConstE ["False","True"])
 infixr 5 .*.
 infixr 5 .+.
 
+mapUI :: (a -> ErrVal b) -> (b->a) -> UI e a -> UI e b
 mapUI aeb ba = MapUI (BiMap aeb ba)
+
+label :: String -> UI e a -> UI e a
 label = Label
+
+defaultUI :: a -> UI e a -> UI e a
 defaultUI = DefaultUI
+
+listUI :: (a->String) -> UI e a -> UI e [a]
 listUI = ListUI
 
 fieldUI :: (HasUI a) => String -> UI ConstE a
