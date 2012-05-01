@@ -25,7 +25,7 @@ uiJSON :: UI ConstE a -> UIJSON a
 uiJSON ui = mkJSON (addLabels ui)
 
 mkJSON :: UI ConstE a -> UIJSON a
-mkJSON (Entry (BiMap fromString toString)) = jsonEntry fromString toString
+mkJSON Entry = jsonEntry
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
 mkJSON (MapUI (BiMap fab fba) ui) = jsonMapUI fab fba (mkJSON ui)
 mkJSON (DefaultUI a ui) = (mkJSON ui){uj_default=Just a}
@@ -61,16 +61,16 @@ addOrLabels (OrUI uia uib) i0 =
 addOrLabels ui@(Label _ _) i = (addLabels ui,i)
 addOrLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
 
-jsonEntry :: (String -> ErrVal a) -> (a -> String) -> UIJSON a
-jsonEntry fromString toString = UIJSON {
+jsonEntry :: UIJSON String
+jsonEntry = UIJSON {
               uj_label=Text.empty,
               uj_default=Nothing,
               uj_tojson = tojson,
               uj_fromjson =  fromjson
             }
   where
-    tojson s = DA.String (Text.pack (toString s))
-    fromjson (DA.String t) = fromString (Text.unpack t)
+    tojson s = DA.String (Text.pack s)
+    fromjson (DA.String t) = pure (Text.unpack t)
     fromjson _ = eErr "Non string json value found"
 
 jsonMapUI ::  (a -> ErrVal b) -> (b -> a) -> UIJSON a -> UIJSON b

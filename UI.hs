@@ -15,9 +15,8 @@ data BiMap a b = BiMap {
 -- a value of type a. e is a type constructor specifing how UI specific values
 -- may be possibly obtained from an environment.
 data UI e a where
-    -- | A UI String field. The BiMap describes how to map the string
-    -- to the UI type.
-    Entry :: BiMap String a -> UI e a
+    -- | A UI String field
+    Entry :: UI e String
 
     -- | Annotate a UI with a text label
     Label :: String -> UI e a -> UI e a
@@ -46,13 +45,9 @@ data UI e a where
 newtype ConstE a = ConstE a
 newtype IOE e a = IOE (e -> IO a)
 
--- | A UI for a simple string
-stringUI :: UI e String
-stringUI = Entry (BiMap eVal id)
-
 -- | A UI for any type implemented Read and Show.
 readUI :: (Read a, Show a) => String -> UI e a
-readUI typestr = Entry (BiMap fromString show)
+readUI typestr = MapUI (BiMap fromString show) Entry 
   where
     fromString s = case reads s of
         [(a,"")] -> eVal a
@@ -60,7 +55,7 @@ readUI typestr = Entry (BiMap fromString show)
 
 -- | A UI for an optional value of any type implemented Read and Show.
 maybeReadUI :: (Read a, Show a) => String -> UI e (Maybe a)
-maybeReadUI typestr = Entry (BiMap fromString toString)
+maybeReadUI typestr = MapUI (BiMap fromString toString) Entry 
   where
     fromString "" = eVal Nothing
     fromString s = case reads s of
@@ -107,7 +102,7 @@ instance HasUI Int where
   mkUI = readUI "Int"
 
 instance HasUI String where
-  mkUI = stringUI
+  mkUI = Entry
 
 instance HasUI Bool where
   mkUI = boolUI
@@ -116,7 +111,7 @@ ioeGet :: IOE e a -> e -> IO (ConstE a)
 ioeGet (IOE fa) e = fa e >>= return.ConstE
 
 ioFromConstUI :: UI ConstE a -> UI (IOE e) a
-ioFromConstUI (Entry bm) = Entry bm
+ioFromConstUI Entry = Entry
 ioFromConstUI (Label s ui) = Label s (ioFromConstUI ui)
 ioFromConstUI (AndUI ui1 ui2) = AndUI (ioFromConstUI ui1) (ioFromConstUI ui2)
 ioFromConstUI (OrUI ui1 ui2) = OrUI (ioFromConstUI ui1) (ioFromConstUI ui2)
@@ -126,7 +121,7 @@ ioFromConstUI (MapUI bm ui) = MapUI bm (ioFromConstUI ui)
 ioFromConstUI (DefaultUI a ui) = DefaultUI a (ioFromConstUI ui)
 
 snapshotUI :: e -> UI (IOE e) a -> IO (UI ConstE a)
-snapshotUI e (Entry bm) = return (Entry bm)
+snapshotUI e Entry = return Entry
 snapshotUI e (Label s ui) = snapshotUI e ui >>= return.Label s
 snapshotUI e (AndUI ui1 ui2) = do
     ui1' <- snapshotUI e ui1

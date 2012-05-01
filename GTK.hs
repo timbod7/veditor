@@ -46,8 +46,9 @@ data UIGTK e a = UIGTK {
 type UIE e a = UI (IOE e) a
 
 uiGTK  :: UI (IOE e) a -> UIGTK e a
-uiGTK (Entry (BiMap fromString toString)) = gtkEntry fromString toString 
+uiGTK Entry = gtkEntry pure id
 uiGTK (Label label ui) = (uiGTK ui){ui_label=labelString label}
+uiGTK (MapUI (BiMap fab fba) Entry) = gtkEntry fab fba
 uiGTK (MapUI (BiMap fab fba) ui) = gtkMapUI fab fba (uiGTK ui)
 uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
 uiGTK (EnumUI ss) = gtkEnumUI ss

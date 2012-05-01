@@ -25,7 +25,7 @@ instance HasUI Person
         fromStruct (Person a b c) = (a,(b,c))
 
 nonEmptyString :: UI ConstE String
-nonEmptyString = Entry (BiMap fromUI id)
+nonEmptyString = mapUI fromUI id Entry
   where
     fromUI s | s == "" = eErr "Empty String"
              | otherwise = eVal s
