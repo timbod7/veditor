@@ -1,4 +1,7 @@
-module Test where
+module Test(
+ testAll,
+ test1
+) where
 
 import Graphics.UI.Gtk
 import qualified Data.Aeson as DA
@@ -76,3 +79,34 @@ testAll = do
     set window [ containerChild := vbox ]
     widgetShowAll window
     mainGUI
+
+test1 :: UI ConstE a -> IO ()
+test1 ui = do
+    initGUI
+    window <- windowNew
+    vbox <- vBoxNew False 5
+    hbox <- hBoxNew False 5
+    onDestroy window mainQuit
+    let uigtk = uiGTK (ioFromConstUI ui)
+    set window [ containerBorderWidth := 10, windowTitle := ui_label uigtk ]
+    uig <- ui_create uigtk (GTKCTX (return ()) ())
+    boxPackStart vbox (ui_widget uig) PackGrow 0
+    boxPackStart vbox hbox PackNatural 0
+    set window [ containerChild := vbox ]
+    mkButton hbox "Reset" $ do
+        ui_reset uig
+    mkButton hbox "Get" $ do
+        ev <- ui_get uig
+        case ev of
+            (ErrVal (Right emsg)) -> putStrLn ("ERROR:" ++ emsg)
+            (ErrVal (Left  v)) -> L.putStrLn (DA.encode (uj_tojson (uiJSON ui) v))
+
+    widgetShowAll window
+    mainGUI
+  where
+    mkButton hbox label action = do
+        b <- buttonNew
+        set b [buttonLabel:=label]
+        boxPackEnd hbox b PackNatural 0
+        on b buttonActivated action
+

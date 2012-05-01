@@ -2,8 +2,10 @@
 
 module GTK(
     GTKWidget(..),
-    modalDialogNew,
+    UIGTK(..),
+    GTKCTX(..),
     ModalDialog(..),
+    modalDialogNew,
     dialogOK, dialogReset, dialogCancel,
     maybeM,
     uiGTK
