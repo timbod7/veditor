@@ -1,30 +1,43 @@
 module ErrVal where
 
--- ErrVal uses the Either type to storage and propagage
--- an error message. Instances of Num and Fractional
--- are included so that maths can be done on ErrVal, without
--- requiring monadic code. We supply the monad also.
+-- ErrVal captures a value, or an error state indicating
+-- that the value could not be computed. The error state
+-- includes a "reason" message and context information on
+-- where the error occurred.
+-- 
+-- Instances of Functor, Applicative, Monad, Num, and Fractional are
+-- provided.
 
 import Control.Monad
 import Control.Applicative
 
-newtype ErrVal a = ErrVal (Either a String)
+data ErrVal a = EValue a
+              | Error { ereason :: String, econtext :: [String] }
     deriving (Eq,Ord,Show)
 
-eVal v = ErrVal (Left v)
-eErr s = ErrVal (Right s)
-
-instance Monad ErrVal where
-    return v  = ErrVal (Left v)
-    (>>=) (ErrVal (Left a)) f = f a
-    (>>=) (ErrVal (Right s)) f = (ErrVal (Right s))
-
 instance Functor ErrVal where
-    fmap f va = va >>= (return.f)
+    fmap f (EValue a) = EValue (f a)
+    fmap _ (Error e c) = Error e c
 
 instance Applicative ErrVal where
-    pure = return
-    (<*>) = ap
+    pure = EValue
+
+    (EValue f) <*> (EValue a)  = EValue (f a)
+    (Error e c) <*> _ = Error e c
+    _ <*> (Error e c) = Error e c
+
+instance Monad ErrVal where
+    return  = pure
+
+    (EValue a) >>= f = f a
+    (Error e c ) >>=  f = Error e c
+
+eVal a = EValue a
+eErr s = Error s []
+
+eContext :: String -> ErrVal a -> ErrVal a
+eContext c ev@(EValue v) = ev
+eContext c (Error msg cs) = Error msg (c:cs)
 
 evMaybe :: Maybe a -> String -> ErrVal a
 evMaybe (Just v) _ = eVal v
@@ -33,7 +46,7 @@ evMaybe _ s = eErr s
 evFilter :: [ErrVal a] -> [a]
 evFilter = foldr f []
   where
-    f (ErrVal (Left a)) as = a:as
+    f (EValue a) as = a:as
     f _ as= as
 
 evlift1 :: (a->a) -> ErrVal a -> ErrVal a
@@ -56,5 +69,6 @@ instance Fractional a => Fractional (ErrVal a) where
     (/) = evlift2 (/)
 
 errval :: (a -> b) -> (String -> b) -> (ErrVal a) -> b
-errval fa fe (ErrVal (Left a)) = fa a
-errval fa fe (ErrVal (Right e)) = fe e
+errval fa fe (EValue a) = fa a
+errval fa fe (Error e c) = fe e
+

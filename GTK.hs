@@ -47,7 +47,7 @@ type UIE e a = UI (IOE e) a
 
 uiGTK  :: UI (IOE e) a -> UIGTK e a
 uiGTK Entry = gtkEntry pure id
-uiGTK (Label label ui) = (uiGTK ui){ui_label=labelString label}
+uiGTK (Label label ui) = gtkLabel label (uiGTK ui)
 uiGTK (MapUI (BiMap fab fba) Entry) = gtkEntry fab fba
 uiGTK (MapUI (BiMap fab fba) ui) = gtkMapUI fab fba (uiGTK ui)
 uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
@@ -117,8 +117,12 @@ gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
             return uiwa {
               ui_set=(ui_set uiwa).fba,
               ui_get=do
-              fmap (errval fab eErr) (ui_get uiwa)
+                 ea <- ui_get uiwa
+                 case ea of
+                     (EValue a) -> return (fab a)
+                     (Error m c) -> return (Error m c)
             }
+         
 
 invalidEntryBackground = Color 65535 50000 50000
 
@@ -144,6 +148,20 @@ gtkEntry fromString toString = UIGTK "" $ \ctx -> do
         errval (\_ -> setOK e) (\_ -> setInvalid e) (fromString s)
     setOK e = widgetRestoreBase e StateNormal
     setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
+
+gtkLabel :: String -> UIGTK e a -> UIGTK e a
+gtkLabel label ui = ui{
+    ui_label=label',
+    ui_create= (\ctx -> do
+        gw <- ui_create ui ctx
+        return gw{ui_get = do
+            ev <- ui_get gw
+            return (eContext label' ev)
+        }
+    )
+    }
+  where
+    label' = labelString label
 
 data UnionState e = UnionState {
     us_table :: Table,
@@ -420,8 +438,8 @@ modalDialogNew e title ui buttons = do
     let activatef = do
         ev <- ui_get gw
         case ev of
-           (ErrVal (Right s)) -> return ()
-           (ErrVal (Left v)) -> do
+           (Error{}) -> return ()
+           (EValue v) -> do
                writeIORef resultv (Just v)
                dialogResponse dialog ResponseOk
     writeIORef activatefv activatef
@@ -467,8 +485,8 @@ dialogOK = ("OK",ok)
     ok gw = do
         ev <- ui_get gw
         case ev of
-           (ErrVal (Left v)) -> return (Just (Just v))
-           (ErrVal (Right s)) -> return Nothing
+           (EValue v) -> return (Just (Just v))
+           (Error{}) -> return Nothing
 
 dialogReset = ("Reset",reset)
   where

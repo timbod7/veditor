@@ -7,6 +7,7 @@ import Graphics.UI.Gtk
 import qualified Data.Aeson as DA
 import qualified Data.ByteString.Lazy as L
 
+import Data.List
 import Control.Monad
 
 import UI
@@ -98,8 +99,10 @@ test1 ui = do
     mkButton hbox "Get" $ do
         ev <- ui_get uig
         case ev of
-            (ErrVal (Right emsg)) -> putStrLn ("ERROR:" ++ emsg)
-            (ErrVal (Left  v)) -> L.putStrLn (DA.encode (uj_tojson (uiJSON ui) v))
+            (Error emsg context) -> do
+                let ctxString = intercalate "." (reverse context)
+                putStrLn ("ERROR:" ++ emsg ++ " for " ++ ctxString )
+            (EValue v) -> L.putStrLn (DA.encode (uj_tojson (uiJSON ui) v))
 
     widgetShowAll window
     mainGUI
