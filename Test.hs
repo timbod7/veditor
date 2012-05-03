@@ -5,7 +5,11 @@ module Test(
 
 import Graphics.UI.Gtk
 import qualified Data.Aeson as DA
+import qualified Data.Aeson.Encode as DA
+import qualified Data.Attoparsec.Text as DA
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Text.Lazy.Builder as Text
+import qualified Data.Text.Lazy as Text
 
 import Data.List
 import Control.Monad
@@ -89,24 +93,49 @@ test1 ui = do
     hbox <- hBoxNew False 5
     onDestroy window mainQuit
     let uigtk = uiGTK (ioFromConstUI ui)
+    let uijson = uiJSON ui
     set window [ containerBorderWidth := 10, windowTitle := ui_label uigtk ]
     uig <- ui_create uigtk (GTKCTX (return ()) ())
     boxPackStart vbox (ui_widget uig) PackGrow 0
     boxPackStart vbox hbox PackNatural 0
     set window [ containerChild := vbox ]
+    cb <- clipboardGet selectionClipboard
+
     mkButton hbox "Reset" $ do
         ui_reset uig
+
+    mkButton hbox "Paste" $ do
+        clipboardRequestText cb $ \ms ->
+          case ms of
+            Nothing -> return ()
+            (Just s) -> do
+                case jsonFromString s of
+                    Left _ -> return ()
+                    Right v -> case uj_fromjson uijson v of
+                        (EValue a) -> ui_set uig a
+                        _ -> return ()
+
+    mkButton hbox "Copy" $ do
+        ev <- ui_get uig
+        case ev of
+            (Error emsg context) -> putStrLn (errorMessage emsg context)
+            (EValue v) -> do
+                let s = Text.unpack (Text.toLazyText (DA.fromValue (uj_tojson uijson v)))
+                clipboardSetText cb s
+
     mkButton hbox "Get" $ do
         ev <- ui_get uig
         case ev of
-            (Error emsg context) -> do
-                let ctxString = intercalate "." (reverse context)
-                putStrLn ("ERROR:" ++ emsg ++ " for " ++ ctxString )
-            (EValue v) -> L.putStrLn (DA.encode (uj_tojson (uiJSON ui) v))
+            (Error emsg context) -> putStrLn (errorMessage emsg context)
+            (EValue v) -> do
+                let lbs = DA.encode (uj_tojson uijson v)
+                L.putStrLn lbs
 
     widgetShowAll window
     mainGUI
   where
+    errorMessage emsg context = "Error: " ++ emsg ++ " for " ++ (intercalate "." (reverse context))
+
     mkButton hbox label action = do
         b <- buttonNew
         set b [buttonLabel:=label]

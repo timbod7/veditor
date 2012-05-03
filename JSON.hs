@@ -2,7 +2,8 @@
 
 module JSON(
     UIJSON(..),
-    uiJSON
+    uiJSON,
+    jsonFromString
 ) where
 
 import Control.Applicative
@@ -12,7 +13,9 @@ import ErrVal
 import qualified Data.Aeson as DA
 import qualified Data.Vector as DV
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.HashMap.Strict as HMap
+import qualified Data.Attoparsec.ByteString as A
 
 data UIJSON a = UIJSON {
         uj_label :: Text.Text,
@@ -177,3 +180,5 @@ jsonEnumUI ss = UIJSON {
     fromjson _ = eErr "Non string json value found"
 
 
+jsonFromString :: String -> Either String DA.Value
+jsonFromString s =  A.parseOnly (DA.json) (Text.encodeUtf8 (Text.pack s))
