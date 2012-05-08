@@ -1,8 +1,8 @@
-module Talk.Example1 where
+module Examples.Example1 where
 
 import VE
 import ErrVal
-import Test
+import Examples.Utils(testC)
 
 data Person = Person {
     st_name :: String,
@@ -19,3 +19,5 @@ instance HasVE Person
         toStruct (a,b) = eVal (Person a b)
         fromStruct (Person a b) = (a,b)
 
+
+test = testC (mkVE :: VE ConstE Person)

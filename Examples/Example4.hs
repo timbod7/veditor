@@ -1,8 +1,9 @@
-module Talk.Example4 where
+module Examples.Example4 where
+
+import Examples.Utils(testC)
 
 import VE
 import ErrVal
-import Test
 
 data Expr = Literal Double
           | Ref String
@@ -50,3 +51,5 @@ referenceVE = mapVE fromVE id Entry
     fromVE s | s == "" = eErr "Empty reference"
              | ' ' `elem` s || '\t' `elem` s = eErr "Whitespace in reference"
              | otherwise = eVal s
+
+test = testC (mkVE :: VE ConstE Expr)

@@ -1,9 +1,9 @@
-module Talk.Example3 where
+module Examples.Example3 where
 
-import Talk.Example2
+import Examples.Example2(Person(..))
+import Examples.Utils(testC)
 import VE
 import ErrVal
-import Test
 
 
 data Team = Team {
@@ -20,3 +20,5 @@ instance HasVE Team
       where
         toStruct (a,b) = eVal (Team a b)
         fromStruct (Team a b) = (a,b)
+
+test = testC (mkVE :: VE ConstE Team)

@@ -1,8 +1,8 @@
-module Talk.Example2 where
+module Examples.Example2 where
 
 import VE
 import ErrVal
-import Test
+import Examples.Utils(testC)
 
 data Gender = Male | Female
   deriving (Show,Enum)
@@ -34,3 +34,4 @@ instance HasVE Gender
   where
     mkVE = mapVE (eVal.toEnum) fromEnum (EnumVE (ConstE ["Male","Female"]))
 
+test = testC (mkVE :: VE ConstE Person)
