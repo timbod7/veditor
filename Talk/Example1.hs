@@ -1,6 +1,6 @@
 module Talk.Example1 where
 
-import UI
+import VE
 import ErrVal
 import Test
 
@@ -9,11 +9,11 @@ data Person = Person {
     st_age :: Int
 } deriving (Show)
 
-instance HasUI Person
+instance HasVE Person
   where
-    mkUI = mapUI toStruct fromStruct
-        (   label "Name" mkUI
-        .*. label "Age"   mkUI
+    mkVE = mapVE toStruct fromStruct
+        (   label "Name" mkVE
+        .*. label "Age"   mkVE
         )
       where
         toStruct (a,b) = eVal (Person a b)

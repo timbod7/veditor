@@ -1,6 +1,6 @@
 module Talk.Example2 where
 
-import UI
+import VE
 import ErrVal
 import Test
 
@@ -13,24 +13,24 @@ data Person = Person {
     st_gender :: Gender
 } deriving (Show)
 
-instance HasUI Person
+instance HasVE Person
   where
-    mkUI = mapUI toStruct fromStruct
+    mkVE = mapVE toStruct fromStruct
         (   label "Name" nonEmptyString
-        .*. label "Age"   mkUI
-        .*. label "Gender"   mkUI
+        .*. label "Age"   mkVE
+        .*. label "Gender"   mkVE
         )
       where
         toStruct (a,(b,c)) = eVal (Person a b c)
         fromStruct (Person a b c) = (a,(b,c))
 
-nonEmptyString :: UI ConstE String
-nonEmptyString = mapUI fromUI id Entry
+nonEmptyString :: VE ConstE String
+nonEmptyString = mapVE fromVE id Entry
   where
-    fromUI s | s == "" = eErr "Empty String"
+    fromVE s | s == "" = eErr "Empty String"
              | otherwise = eVal s
 
-instance HasUI Gender
+instance HasVE Gender
   where
-    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI (ConstE ["Male","Female"]))
+    mkVE = mapVE (eVal.toEnum) fromEnum (EnumVE (ConstE ["Male","Female"]))
 

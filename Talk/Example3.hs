@@ -1,7 +1,7 @@
 module Talk.Example3 where
 
 import Talk.Example2
-import UI
+import VE
 import ErrVal
 import Test
 
@@ -11,11 +11,11 @@ data Team = Team {
     t_followers :: [Person]
 } deriving (Show)
 
-instance HasUI Team
+instance HasVE Team
   where
-    mkUI = mapUI toStruct fromStruct
-        (   label "Leader" mkUI
-        .*. label "Followers"  (listUI st_name mkUI)
+    mkVE = mapVE toStruct fromStruct
+        (   label "Leader" mkVE
+        .*. label "Followers"  (listVE st_name mkVE)
         )
       where
         toStruct (a,b) = eVal (Team a b)

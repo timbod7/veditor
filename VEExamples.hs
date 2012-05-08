@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module UIExamples where
+module VEExamples where
 
 import System.FilePath
 import System.Directory
@@ -8,7 +8,7 @@ import System.Posix
 import Control.Monad
 import Control.Applicative
 
-import UI
+import VE
 import ErrVal
 
 data StructTest = StructTest {
@@ -17,12 +17,12 @@ data StructTest = StructTest {
     t_v3 :: Int
 } deriving (Show)
 
-instance HasUI StructTest
+instance HasVE StructTest
   where
-    mkUI = mapUI toStruct fromStruct
-        (   label "stringV" mkUI
-        .*. label "intV1"   mkUI
-        .*. label "intV2"   (defaultUI 7 mkUI)
+    mkVE = mapVE toStruct fromStruct
+        (   label "stringV" mkVE
+        .*. label "intV1"   mkVE
+        .*. label "intV2"   (defaultVE 7 mkVE)
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest a b c)
@@ -34,12 +34,12 @@ data StructTest2 = StructTest2 {
     t_v6 :: StructTest
 } deriving (Show)
 
-instance HasUI StructTest2
+instance HasVE StructTest2
   where
-    mkUI = mapUI toStruct fromStruct
-        (   label "stringV" mkUI
-        .*. label "maybeIntV" (maybeReadUI "Int")
-        .*. label "structV" mkUI
+    mkVE = mapVE toStruct fromStruct
+        (   label "stringV" mkVE
+        .*. label "maybeIntV" (maybeReadVE "Int")
+        .*. label "structV" mkVE
         )
       where
         toStruct (a,(b,c)) = eVal (StructTest2 a b c)
@@ -51,13 +51,13 @@ data UnionTest = UT_V1 String
                | UT_V4 UnionTest
     deriving (Show)
 
-instance HasUI UnionTest
+instance HasVE UnionTest
   where
-    mkUI = mapUI (eVal.toUnion) fromUnion 
-        (   label "stringV" mkUI
-        .+. label "intV" mkUI
-        .+. label "structV" mkUI
-        .+. label "recUnionV" mkUI
+    mkVE = mapVE (eVal.toUnion) fromUnion 
+        (   label "stringV" mkVE
+        .+. label "intV" mkVE
+        .+. label "structV" mkVE
+        .+. label "recUnionV" mkVE
         )
       where
         toUnion = either UT_V1
@@ -69,8 +69,8 @@ instance HasUI UnionTest
         fromUnion (UT_V3 v) = (Right . Right . Left) v
         fromUnion (UT_V4 v) = (Right . Right . Right) v
 
-listTest :: UI ConstE [StructTest]
-listTest = defaultUI defv $ listUI show mkUI
+listTest :: VE ConstE [StructTest]
+listTest = defaultVE defv $ listVE show mkVE
   where
    defv = [StructTest "southern" 4 5, StructTest "tasman" 5 6]
 
@@ -82,13 +82,13 @@ data StructTest3 = StructTest3 {
     t_v10 :: [StructTest]
 } deriving (Show)
 
-instance HasUI StructTest3
+instance HasVE StructTest3
   where
-    mkUI = mapUI toStruct fromStruct
-        (   label "string" mkUI
-        .*. label "int" mkUI
-        .*. label "bool" mkUI
-        .*. label "struct list" (listUI show mkUI)
+    mkVE = mapVE toStruct fromStruct
+        (   label "string" mkVE
+        .*. label "int" mkVE
+        .*. label "bool" mkVE
+        .*. label "struct list" (listVE show mkVE)
         )
      where
        toStruct (a,(b,(c,d))) = eVal (StructTest3 a b c d)
@@ -97,23 +97,23 @@ instance HasUI StructTest3
 data BinOp = Add | Sub | Mul | Div
     deriving (Enum)
 
-instance HasUI BinOp
+instance HasVE BinOp
   where
-    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI (ConstE ["Add","Sub","Mul","Div"]))
+    mkVE = mapVE (eVal.toEnum) fromEnum (EnumVE (ConstE ["Add","Sub","Mul","Div"]))
 
 data Expr = Literal Double
           | BinOp BinOp Expr Expr
           | If Expr Expr Expr
 
-instance HasUI Expr
+instance HasVE Expr
   where
-    mkUI = mapUI (eVal.toExpr) fromExpr
-        (   label "literal" (readUI "double")
-        .+. label "add" (mkUI .*. mkUI)
-        .+. label "sub" (mkUI .*. mkUI)
-        .+. label "mul" (mkUI .*. mkUI)
-        .+. label "div" (mkUI .*. mkUI)
-        .+. label "if"  (mkUI .*. mkUI .*. mkUI)
+    mkVE = mapVE (eVal.toExpr) fromExpr
+        (   label "literal" (readVE "double")
+        .+. label "add" (mkVE .*. mkVE)
+        .+. label "sub" (mkVE .*. mkVE)
+        .+. label "mul" (mkVE .*. mkVE)
+        .+. label "div" (mkVE .*. mkVE)
+        .+. label "if"  (mkVE .*. mkVE .*. mkVE)
         )
       where
         -- toExpr (Left v) = eVal (Literal v)
@@ -147,14 +147,14 @@ data EnvStruct = EnvStruct {
     role :: RoleCode
 }
 
-userCodeUI, roleCodeUI :: UI (IOE FilePath) Int
-userCodeUI = EnumUI (IOE (dirContents "users"))
-roleCodeUI = EnumUI (IOE (dirContents "roles"))
+userCodeVE, roleCodeVE :: VE (IOE FilePath) Int
+userCodeVE = EnumVE (IOE (dirContents "users"))
+roleCodeVE = EnumVE (IOE (dirContents "roles"))
 
-envStructUI :: UI (IOE FilePath) EnvStruct
-envStructUI = mapUI toStruct fromStruct
-    (  label "user" userCodeUI
-    .*. label "role" roleCodeUI
+envStructVE :: VE (IOE FilePath) EnvStruct
+envStructVE = mapVE toStruct fromStruct
+    (  label "user" userCodeVE
+    .*. label "role" roleCodeVE
     )
       where
         toStruct (a,b) = eVal (EnvStruct a b)

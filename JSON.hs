@@ -1,14 +1,14 @@
 {-# LANGUAGE GADTs #-}
 
 module JSON(
-    UIJSON(..),
+    VEJSON(..),
     uiJSON,
     jsonFromString
 ) where
 
 import Control.Applicative
 
-import UI
+import VE
 import ErrVal
 import qualified Data.Aeson as DA
 import qualified Data.Vector as DV
@@ -17,55 +17,55 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Attoparsec.ByteString as A
 
-data UIJSON a = UIJSON {
+data VEJSON a = VEJSON {
         uj_label :: Text.Text,
         uj_default :: Maybe a,
         uj_tojson ::  a -> DA.Value,
         uj_fromjson :: DA.Value -> ErrVal a
     }
 
-uiJSON :: UI ConstE a -> UIJSON a
+uiJSON :: VE ConstE a -> VEJSON a
 uiJSON ui = mkJSON (addLabels ui)
 
-mkJSON :: UI ConstE a -> UIJSON a
+mkJSON :: VE ConstE a -> VEJSON a
 mkJSON Entry = jsonEntry
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
-mkJSON (MapUI (BiMap fab fba) ui) = jsonMapUI fab fba (mkJSON ui)
-mkJSON (DefaultUI a ui) = (mkJSON ui){uj_default=Just a}
-mkJSON (EnumUI (ConstE ss)) = jsonEnumUI ss
-mkJSON (ListUI _ ui) = jsonListUI (mkJSON ui)
-mkJSON (AndUI uia uib) = jsonAndUI uia uib
-mkJSON (OrUI uia uib) = jsonOrUI uia uib
+mkJSON (MapVE (BiMap fab fba) ui) = jsonMapVE fab fba (mkJSON ui)
+mkJSON (DefaultVE a ui) = (mkJSON ui){uj_default=Just a}
+mkJSON (EnumVE (ConstE ss)) = jsonEnumVE ss
+mkJSON (ListVE _ ui) = jsonListVE (mkJSON ui)
+mkJSON (AndVE uia uib) = jsonAndVE uia uib
+mkJSON (OrVE uia uib) = jsonOrVE uia uib
 
 -- | Recursively add numeric labels to and/or branches
 -- which don't already have them
-addLabels :: UI ConstE a -> UI ConstE a
+addLabels :: VE ConstE a -> VE ConstE a
 addLabels (Label label ui) = Label label (addLabels ui)
-addLabels (MapUI bm ui) = MapUI bm (addLabels ui)
-addLabels (DefaultUI a ui) = DefaultUI a (addLabels ui)
-addLabels (ListUI sf ui) = ListUI sf (addLabels ui)
-addLabels ui@(AndUI uia uib) = fst (addAndLabels ui 0)
-addLabels ui@(OrUI uia uib) = fst (addOrLabels ui 0)
+addLabels (MapVE bm ui) = MapVE bm (addLabels ui)
+addLabels (DefaultVE a ui) = DefaultVE a (addLabels ui)
+addLabels (ListVE sf ui) = ListVE sf (addLabels ui)
+addLabels ui@(AndVE uia uib) = fst (addAndLabels ui 0)
+addLabels ui@(OrVE uia uib) = fst (addOrLabels ui 0)
 addLabels ui = ui
 
-addAndLabels :: UI ConstE a -> Int -> (UI ConstE a,Int)
-addAndLabels (AndUI uia uib) i0 = 
+addAndLabels :: VE ConstE a -> Int -> (VE ConstE a,Int)
+addAndLabels (AndVE uia uib) i0 = 
      let (uia',i1) = addAndLabels uia i0
          (uib',i2) = addAndLabels uib i1
-     in (AndUI uia' uib',i2)
+     in (AndVE uia' uib',i2)
 addAndLabels ui@(Label _ _) i = (addLabels ui,i)
 addAndLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
 
-addOrLabels :: UI ConstE a -> Int -> (UI ConstE a,Int)
-addOrLabels (OrUI uia uib) i0 = 
+addOrLabels :: VE ConstE a -> Int -> (VE ConstE a,Int)
+addOrLabels (OrVE uia uib) i0 = 
     let (uia',i1) = addOrLabels uia i0
         (uib',i2) = addOrLabels uib i1
-    in (OrUI uia' uib',i2)
+    in (OrVE uia' uib',i2)
 addOrLabels ui@(Label _ _) i = (addLabels ui,i)
 addOrLabels ui i = (Label ("_"++show i) (addLabels ui),i+1)
 
-jsonEntry :: UIJSON String
-jsonEntry = UIJSON {
+jsonEntry :: VEJSON String
+jsonEntry = VEJSON {
               uj_label=Text.empty,
               uj_default=Nothing,
               uj_tojson = tojson,
@@ -76,16 +76,16 @@ jsonEntry = UIJSON {
     fromjson (DA.String t) = pure (Text.unpack t)
     fromjson _ = eErr "Non string json value found"
 
-jsonMapUI ::  (a -> ErrVal b) -> (b -> a) -> UIJSON a -> UIJSON b
-jsonMapUI fab fba uj = UIJSON {
+jsonMapVE ::  (a -> ErrVal b) -> (b -> a) -> VEJSON a -> VEJSON b
+jsonMapVE fab fba uj = VEJSON {
     uj_label= uj_label uj,
     uj_default=Nothing,
     uj_tojson = uj_tojson uj.fba,
     uj_fromjson = \j -> uj_fromjson uj j >>= fab
 }
 
-jsonListUI :: UIJSON a -> UIJSON [a]
-jsonListUI uj = UIJSON {
+jsonListVE :: VEJSON a -> VEJSON [a]
+jsonListVE uj = VEJSON {
     uj_label= uj_label uj,
     uj_default=Nothing,
     uj_tojson = \as -> DA.Array (DV.fromList (map (uj_tojson uj) as)),
@@ -94,8 +94,8 @@ jsonListUI uj = UIJSON {
         _ -> eErr "expected a json array"
 }
 
-jsonAndUI :: UI ConstE a -> UI ConstE b -> UIJSON (a,b)
-jsonAndUI uia uib = UIJSON {
+jsonAndVE :: VE ConstE a -> VE ConstE b -> VEJSON (a,b)
+jsonAndVE uia uib = VEJSON {
     uj_label= Text.empty,
     uj_default=Nothing,
     uj_tojson = DA.Object . tojson ui,
@@ -104,16 +104,16 @@ jsonAndUI uia uib = UIJSON {
         _ -> eErr "expected a json object"
     }
   where
-    ui = AndUI uia uib
+    ui = AndVE uia uib
 
-    tojson :: UI ConstE a -> a -> DA.Object
-    tojson (AndUI uia uib) (a,b)= tojson uia a `HMap.union` tojson uib b
+    tojson :: VE ConstE a -> a -> DA.Object
+    tojson (AndVE uia uib) (a,b)= tojson uia a `HMap.union` tojson uib b
     tojson ui a =
         let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
-    fromjson :: DA.Object -> UI ConstE a -> ErrVal a
-    fromjson o (AndUI uia uib) = (,) <$> fromjson o uia <*> fromjson o uib
+    fromjson :: DA.Object -> VE ConstE a -> ErrVal a
+    fromjson o (AndVE uia uib) = (,) <$> fromjson o uia <*> fromjson o uib
     fromjson o ui = 
         let uj = mkJSON ui
         in case HMap.lookup (uj_label uj) o of
@@ -122,7 +122,7 @@ jsonAndUI uia uib = UIJSON {
                  Nothing -> eErr ("field " ++ Text.unpack (uj_label uj) ++ " missing")
                  (Just v) -> eVal v
 
-jsonOrUI uia uib = UIJSON {
+jsonOrVE uia uib = VEJSON {
     uj_label= Text.empty,
     uj_default=Nothing,
     uj_tojson = DA.Object . tojson ui,
@@ -131,24 +131,24 @@ jsonOrUI uia uib = UIJSON {
         _ -> eErr "expected a json object"
     }
   where
-    ui = OrUI uia uib
+    ui = OrVE uia uib
 
-    tojson :: UI ConstE a -> a -> DA.Object
-    tojson (OrUI uia uib) (Left a) = tojson uia a
-    tojson (OrUI uia uib) (Right b) = tojson uib b
+    tojson :: VE ConstE a -> a -> DA.Object
+    tojson (OrVE uia uib) (Left a) = tojson uia a
+    tojson (OrVE uia uib) (Right b) = tojson uib b
     tojson ui a = 
         let uj = mkJSON ui
         in HMap.singleton (uj_label uj) (uj_tojson uj a)
 
-    fromjson :: DA.Object -> UI ConstE a -> ErrVal a
+    fromjson :: DA.Object -> VE ConstE a -> ErrVal a
     fromjson o ui = case HMap.toList o of
         [(k,v)] -> case fromjson1 k v ui of
             Nothing -> eErr ("Illegal union key " ++ Text.unpack k)
             (Just v) -> v
         _ -> eErr "Union must be a single key value pair"
 
-    fromjson1 :: Text.Text -> DA.Value -> UI ConstE a -> (Maybe (ErrVal a))
-    fromjson1 l v (OrUI uia uib) = case fromjson1 l v uia of
+    fromjson1 :: Text.Text -> DA.Value -> VE ConstE a -> (Maybe (ErrVal a))
+    fromjson1 l v (OrVE uia uib) = case fromjson1 l v uia of
         Nothing -> case fromjson1 l v uib of
             Nothing -> Nothing
             (Just ev) -> (Just (fmap Right ev))
@@ -158,8 +158,8 @@ jsonOrUI uia uib = UIJSON {
       where
         uj = mkJSON ui
 
-jsonEnumUI :: [String] -> UIJSON Int
-jsonEnumUI ss = UIJSON {
+jsonEnumVE :: [String] -> VEJSON Int
+jsonEnumVE ss = VEJSON {
     uj_label= Text.empty,
     uj_default=Nothing,
     uj_tojson= tojson,

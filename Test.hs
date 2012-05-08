@@ -14,10 +14,10 @@ import qualified Data.Text.Lazy as Text
 import Data.List
 import Control.Monad
 
-import UI
+import VE
 import GTK
 import JSON
-import UIExamples
+import VEExamples
 import ErrVal
 
 testui title uidef = do
@@ -47,23 +47,23 @@ testAll = do
     let
 
       -- This supports dynamic non-recursive uis
-      addEnvTest :: String -> e -> UI (IOE e) a -> IO ()
+      addEnvTest :: String -> e -> VE (IOE e) a -> IO ()
       addEnvTest title e uidef = do
         let uig = uiGTK uidef
         button <- buttonNew
         set button [ buttonLabel := title ]
         dialog <- modalDialogNew e title uig [dialogOK,dialogReset,dialogCancel]
         on button buttonActivated $ do
-           uidef' <- snapshotUI e uidef
+           uidef' <- snapshotVE e uidef
            mr <- md_run dialog
            maybeM mr $ \v -> do
                L.putStrLn (DA.encode (uj_tojson (uiJSON uidef') v))
         containerAdd vbox button
 
       -- This supports constant potentially recursive uis
-      addConstTest :: String -> UI ConstE a -> IO ()
+      addConstTest :: String -> VE ConstE a -> IO ()
       addConstTest title uidef = do
-        let uig = uiGTK (ioFromConstUI uidef)
+        let uig = uiGTK (ioFromConstVE uidef)
         button <- buttonNew
         set button [ buttonLabel := title ]
         dialog <- modalDialogNew () title uig [dialogOK,dialogReset,dialogCancel]
@@ -73,26 +73,26 @@ testAll = do
                L.putStrLn (DA.encode (uj_tojson (uiJSON uidef) v))
         containerAdd vbox button
 
-    addConstTest "StructTest" (mkUI :: UI ConstE StructTest)
-    addConstTest "StructTest2" (mkUI :: UI ConstE StructTest2)
-    addConstTest "UnionTest" (mkUI :: UI ConstE UnionTest)
+    addConstTest "StructTest" (mkVE :: VE ConstE StructTest)
+    addConstTest "StructTest2" (mkVE :: VE ConstE StructTest2)
+    addConstTest "UnionTest" (mkVE :: VE ConstE UnionTest)
     addConstTest "[StructTest]" listTest
-    addConstTest "StructTest3" (mkUI :: UI ConstE StructTest3)
-    addConstTest "Expr" (mkUI :: UI ConstE Expr)
-    addEnvTest "EnvStruct" "/tmp" envStructUI
+    addConstTest "StructTest3" (mkVE :: VE ConstE StructTest3)
+    addConstTest "Expr" (mkVE :: VE ConstE Expr)
+    addEnvTest "EnvStruct" "/tmp" envStructVE
        
     set window [ containerChild := vbox ]
     widgetShowAll window
     mainGUI
 
-test1 :: UI ConstE a -> IO ()
+test1 :: VE ConstE a -> IO ()
 test1 ui = do
     initGUI
     window <- windowNew
     vbox <- vBoxNew False 5
     hbox <- hBoxNew False 5
     onDestroy window mainQuit
-    let uigtk = uiGTK (ioFromConstUI ui)
+    let uigtk = uiGTK (ioFromConstVE ui)
     let uijson = uiJSON ui
     set window [ containerBorderWidth := 10, windowTitle := ui_label uigtk ]
     uig <- ui_create uigtk (GTKCTX (return ()) ())

@@ -1,6 +1,6 @@
 module Talk.Example4 where
 
-import UI
+import VE
 import ErrVal
 import Test
 
@@ -12,16 +12,16 @@ data Expr = Literal Double
 data BinOp = Add | Sub | Mul | Div
     deriving (Enum)
 
-instance HasUI Expr
+instance HasVE Expr
   where
-    mkUI = mapUI (eVal.toExpr) fromExpr
-        (   label "literal" (readUI "double")
-        .+. label "ref" referenceUI
-        .+. label "add" (mkUI .*. mkUI)
-        .+. label "sub" (mkUI .*. mkUI)
-        .+. label "mul" (mkUI .*. mkUI)
-        .+. label "div" (mkUI .*. mkUI)
-        .+. label "if"  (mkUI .*. mkUI .*. mkUI)
+    mkVE = mapVE (eVal.toExpr) fromExpr
+        (   label "literal" (readVE "double")
+        .+. label "ref" referenceVE
+        .+. label "add" (mkVE .*. mkVE)
+        .+. label "sub" (mkVE .*. mkVE)
+        .+. label "mul" (mkVE .*. mkVE)
+        .+. label "div" (mkVE .*. mkVE)
+        .+. label "if"  (mkVE .*. mkVE .*. mkVE)
         )
       where
         toExpr = either Literal
@@ -40,13 +40,13 @@ instance HasUI Expr
         fromExpr (BinOp Div e1 e2) = (Right . Right . Right . Right . Right . Left) (e1,e2)
         fromExpr (If e1 e2 e3)     = (Right . Right . Right . Right . Right . Right) (e1,(e2,e3))
 
-instance HasUI BinOp
+instance HasVE BinOp
   where
-    mkUI = mapUI (eVal.toEnum) fromEnum (EnumUI (ConstE ["Add","Sub","Mul","Div"]))
+    mkVE = mapVE (eVal.toEnum) fromEnum (EnumVE (ConstE ["Add","Sub","Mul","Div"]))
 
-referenceUI :: UI ConstE String
-referenceUI = mapUI fromUI id Entry
+referenceVE :: VE ConstE String
+referenceVE = mapVE fromVE id Entry
   where
-    fromUI s | s == "" = eErr "Empty reference"
+    fromVE s | s == "" = eErr "Empty reference"
              | ' ' `elem` s || '\t' `elem` s = eErr "Whitespace in reference"
              | otherwise = eVal s

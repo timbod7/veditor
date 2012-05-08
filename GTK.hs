@@ -2,7 +2,7 @@
 
 module GTK(
     GTKWidget(..),
-    UIGTK(..),
+    VEGTK(..),
     GTKCTX(..),
     ModalDialog(..),
     modalDialogNew,
@@ -18,7 +18,7 @@ import Data.IORef
 import Data.Char
 import qualified Data.Map as Map
 
-import UI
+import VE
 import DelayIO
 import ErrVal
 
@@ -38,38 +38,38 @@ data GTKWidget e a = GTKWidget {
     ui_tableYAttach :: [AttachOptions]
 }
 
-data UIGTK e a = UIGTK {
+data VEGTK e a = VEGTK {
     ui_label :: String,
     ui_create :: (GTKCTX e -> IO (GTKWidget e a))
 }
 
-type UIE e a = UI (IOE e) a
+type VEE e a = VE (IOE e) a
 
-uiGTK  :: UI (IOE e) a -> UIGTK e a
+uiGTK  :: VE (IOE e) a -> VEGTK e a
 uiGTK Entry = gtkEntry pure id
 uiGTK (Label label ui) = gtkLabel label (uiGTK ui)
-uiGTK (MapUI (BiMap fab fba) Entry) = gtkEntry fab fba
-uiGTK (MapUI (BiMap fab fba) ui) = gtkMapUI fab fba (uiGTK ui)
-uiGTK (DefaultUI a ui) = gtkDefaultUI a (uiGTK ui)
-uiGTK (EnumUI ss) = gtkEnumUI ss
-uiGTK (ListUI toString ui) = gtkListUI toString (uiGTK ui)
-uiGTK (AndUI uia uib) = gtkAndUI uia uib
-uiGTK (OrUI uia uib) = gtkOrUI uia uib
+uiGTK (MapVE (BiMap fab fba) Entry) = gtkEntry fab fba
+uiGTK (MapVE (BiMap fab fba) ui) = gtkMapVE fab fba (uiGTK ui)
+uiGTK (DefaultVE a ui) = gtkDefaultVE a (uiGTK ui)
+uiGTK (EnumVE ss) = gtkEnumVE ss
+uiGTK (ListVE toString ui) = gtkListVE toString (uiGTK ui)
+uiGTK (AndVE uia uib) = gtkAndVE uia uib
+uiGTK (OrVE uia uib) = gtkOrVE uia uib
 
-gtkAndUI :: (UIE e a) -> (UIE e b) -> UIGTK e (a,b)
-gtkAndUI uia uib = UIGTK "" $ \ctx -> do
-    let ui = (AndUI uia uib)
+gtkAndVE :: (VEE e a) -> (VEE e b) -> VEGTK e (a,b)
+gtkAndVE uia uib = VEGTK "" $ \ctx -> do
+    let ui = (AndVE uia uib)
     let nRows = countFields ui
     table <- tableNew nRows 2 False
     rowiv <- newIORef 0
     addFields table rowiv ctx ui 
   where
-    countFields :: UIE e a -> Int
-    countFields (AndUI uia uib) = countFields uia + countFields uib
+    countFields :: VEE e a -> Int
+    countFields (AndVE uia uib) = countFields uia + countFields uib
     countFields _ = 1
 
-    addFields :: Table -> IORef Int -> GTKCTX e -> UIE e a -> IO (GTKWidget e a)
-    addFields table rowiv ctx (AndUI uia uib) = do
+    addFields :: Table -> IORef Int -> GTKCTX e -> VEE e a -> IO (GTKWidget e a)
+    addFields table rowiv ctx (AndVE uia uib) = do
         gwa <- addFields table rowiv ctx uia
         gwb <- addFields table rowiv ctx uib
         return GTKWidget {
@@ -109,8 +109,8 @@ gtkAndUI uia uib = UIGTK "" $ \ctx -> do
             tableAttach table (ui_widget gw) 1 2 i (i+1) xattach yattach 0 0
         return gw
 
-gtkMapUI :: (a -> ErrVal b) -> (b -> a) -> UIGTK e a -> UIGTK e b
-gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
+gtkMapVE :: (a -> ErrVal b) -> (b -> a) -> VEGTK e a -> VEGTK e b
+gtkMapVE fab fba (VEGTK label uia) = VEGTK label mkui
       where
         mkui ctx = do
             uiwa <- uia ctx
@@ -126,8 +126,8 @@ gtkMapUI fab fba (UIGTK label uia) = UIGTK label mkui
 
 invalidEntryBackground = Color 65535 50000 50000
 
-gtkEntry :: (String -> ErrVal a) -> (a -> String) -> UIGTK e a
-gtkEntry fromString toString = UIGTK "" $ \ctx -> do
+gtkEntry :: (String -> ErrVal a) -> (a -> String) -> VEGTK e a
+gtkEntry fromString toString = VEGTK "" $ \ctx -> do
     e <- entryNew
     e `on` editableChanged $ setBackground e
     e `on` entryActivate  $ cs_onActivate ctx
@@ -149,7 +149,7 @@ gtkEntry fromString toString = UIGTK "" $ \ctx -> do
     setOK e = widgetRestoreBase e StateNormal
     setInvalid e = widgetModifyBase e StateNormal invalidEntryBackground
 
-gtkLabel :: String -> UIGTK e a -> UIGTK e a
+gtkLabel :: String -> VEGTK e a -> VEGTK e a
 gtkLabel label ui = ui{
     ui_label=label',
     ui_create= (\ctx -> do
@@ -172,9 +172,9 @@ data UnionState e = UnionState {
     us_i :: IORef Int
 }
 
-gtkOrUI :: UIE e a -> UIE e b -> UIGTK e (Either a b)
-gtkOrUI uia uib = UIGTK "" $ \ctx -> do
-    let ui = (OrUI uia uib)
+gtkOrVE :: VEE e a -> VEE e b -> VEGTK e (Either a b)
+gtkOrVE uia uib = VEGTK "" $ \ctx -> do
+    let ui = (OrVE uia uib)
     let labels = getLabels ui 
     frame <- frameNew
     table <- tableNew 1 1 False
@@ -201,8 +201,8 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
     }
 
   where
-    getLabels :: UIE e a -> [String]
-    getLabels (OrUI uia uib) = getLabels uia ++ getLabels uib
+    getLabels :: VEE e a -> [String]
+    getLabels (OrVE uia uib) = getLabels uia ++ getLabels uib
     getLabels ui = [ui_label (uiGTK ui)]
 
     resetActive :: UnionState e -> IO ()
@@ -215,8 +215,8 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
         active <- readIORef (us_active us)
         sequence_ [ refresh env | (i,(w,reset,refresh)) <- Map.toList active ]
 
-    addChoices :: UnionState e -> GTKCTX e -> UIE e a -> IO (GTKWidget e a)
-    addChoices us ctx (OrUI uia uib) = do
+    addChoices :: UnionState e -> GTKCTX e -> VEE e a -> IO (GTKWidget e a)
+    addChoices us ctx (OrVE uia uib) = do
         gwa <- addChoices us ctx uia
         ileft <- readIORef (us_i us)
         gwb <- addChoices us ctx uib
@@ -256,7 +256,7 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
 
         dgw <- delayIO (ui_create ui ctx)
 
-        let showThisUI = do
+        let showThisVE = do
               let wref = us_current us
               let table = us_table us
               let attach w = tableAttach table w 0 1 0 1 [Expand,Fill] [Expand,Fill] 10 0
@@ -281,19 +281,19 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
 
             set a = do
                 setCombo
-                gw <- showThisUI
+                gw <- showThisVE
                 ui_set gw a
 
-        modifyIORef (us_callback us) (Map.insert i (void showThisUI))
+        modifyIORef (us_callback us) (Map.insert i (void showThisVE))
 
         when (i==0) $ do
             setCombo
-            void showThisUI
+            void showThisVE
 
         return GTKWidget {
             ui_widget = toWidget (us_table us),
             ui_set = set,
-            ui_get = showThisUI >>= ui_get,
+            ui_get = showThisVE >>= ui_get,
             ui_reset = return (),
             ui_refreshEnv= const (return ()),
             ui_packWide = True,
@@ -301,8 +301,8 @@ gtkOrUI uia uib = UIGTK "" $ \ctx -> do
             ui_tableYAttach = [Expand,Shrink,Fill]
          } 
 
-gtkListUI :: (a -> String) -> UIGTK e a -> UIGTK e [a]
-gtkListUI toString ui = UIGTK "" $ \ctx -> do
+gtkListVE :: (a -> String) -> VEGTK e a -> VEGTK e [a]
+gtkListVE toString ui = VEGTK "" $ \ctx -> do
     ls <- listStoreNew []
     tree <- treeViewNewWithModel ls
     col1 <- treeViewColumnNew
@@ -372,8 +372,8 @@ gtkListUI toString ui = UIGTK "" $ \ctx -> do
           ui_tableYAttach = [Expand,Shrink,Fill]
         } 
 
-gtkEnumUI :: IOE e [String] -> UIGTK e Int
-gtkEnumUI (IOE labelsf) = UIGTK "" $ \ctx -> do
+gtkEnumVE :: IOE e [String] -> VEGTK e Int
+gtkEnumVE (IOE labelsf) = VEGTK "" $ \ctx -> do
     combo <- comboBoxNewText
     align <- alignmentNew 0 0 0 0
     containerAdd align combo
@@ -403,15 +403,15 @@ gtkEnumUI (IOE labelsf) = UIGTK "" $ \ctx -> do
           ui_tableYAttach = []
         } 
 
-gtkDefaultUI :: a -> UIGTK e a -> UIGTK  e a
-gtkDefaultUI a ui = UIGTK (ui_label ui) $ \ctx -> do
+gtkDefaultVE :: a -> VEGTK e a -> VEGTK  e a
+gtkDefaultVE a ui = VEGTK (ui_label ui) $ \ctx -> do
     gw <- ui_create ui ctx
     ui_set gw a
     return gw{ui_reset=ui_reset gw >> ui_set gw a}
 
 
--- uiNew :: (UI GTK a) -> IO (GTKWidget a)
--- uiNew (UIGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))
+-- uiNew :: (VE GTK a) -> IO (GTKWidget a)
+-- uiNew (VEGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))
 
 type DialogResult a = Maybe a
 type DialogButton e a = (String,GTKWidget e a -> IO (Maybe (DialogResult a)))
@@ -422,7 +422,7 @@ data ModalDialog e a = ModalDialog {
     md_run :: IO (DialogResult a)
 }
 
-modalDialogNew :: e -> String -> UIGTK e a -> [DialogButton e a] -> IO (ModalDialog e a)
+modalDialogNew :: e -> String -> VEGTK e a -> [DialogButton e a] -> IO (ModalDialog e a)
 modalDialogNew e title ui buttons = do
     dialog <- dialogNew
     resultv <- newIORef Nothing
