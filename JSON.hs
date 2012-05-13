@@ -29,6 +29,7 @@ uiJSON ui = mkJSON (addLabels ui)
 
 mkJSON :: VE ConstE a -> VEJSON a
 mkJSON Entry = jsonEntry
+mkJSON NullVE = jsonNull
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
 mkJSON (MapVE (BiMap fab fba) ui) = jsonMapVE fab fba (mkJSON ui)
 mkJSON (DefaultVE a ui) = (mkJSON ui){uj_default=Just a}
@@ -75,6 +76,14 @@ jsonEntry = VEJSON {
     tojson s = DA.String (Text.pack s)
     fromjson (DA.String t) = pure (Text.unpack t)
     fromjson _ = eErr "Non string json value found"
+
+jsonNull :: VEJSON ()
+jsonNull = VEJSON {
+              uj_label=Text.empty,
+              uj_default=Nothing,
+              uj_tojson = const DA.Null,
+              uj_fromjson =  const (pure ())
+            }
 
 jsonMapVE ::  (a -> ErrVal b) -> (b -> a) -> VEJSON a -> VEJSON b
 jsonMapVE fab fba uj = VEJSON {

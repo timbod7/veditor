@@ -21,6 +21,9 @@ data VE e a where
     -- | Annotate a VE with a text label
     Label :: String -> VE e a -> VE e a
 
+    -- | A null VE
+    NullVE :: VE e ()
+
     -- | A "product" VE that combines values from two other VEs
     AndVE :: (VE e a) -> (VE e b) -> VE e (a,b)
 
@@ -95,11 +98,22 @@ listVE = ListVE
 fieldVE :: (HasVE a) => String -> VE ConstE a
 fieldVE label = Label label mkVE
 
+maybeVE ve = MapVE (BiMap toMaybe fromMaybe) (ve .+. NullVE)
+      where
+        toMaybe (Left a) = eVal (Just a)
+        toMaybe (Right ()) = eVal Nothing
+
+        fromMaybe (Just a) = Left a
+        fromMaybe Nothing = Right ()
+
 class HasVE a where
   mkVE :: VE ConstE a
 
 instance HasVE Int where
   mkVE = readVE "Int"
+
+instance HasVE Double where
+  mkVE = readVE "Double"
 
 instance HasVE String where
   mkVE = Entry
@@ -107,11 +121,16 @@ instance HasVE String where
 instance HasVE Bool where
   mkVE = boolVE
 
+instance (HasVE a) => HasVE (Maybe a)
+  where
+    mkVE = maybeVE mkVE
+
 ioeGet :: IOE e a -> e -> IO (ConstE a)
 ioeGet (IOE fa) e = fa e >>= return.ConstE
 
 ioFromConstVE :: VE ConstE a -> VE (IOE e) a
 ioFromConstVE Entry = Entry
+ioFromConstVE NullVE = NullVE
 ioFromConstVE (Label s ui) = Label s (ioFromConstVE ui)
 ioFromConstVE (AndVE ui1 ui2) = AndVE (ioFromConstVE ui1) (ioFromConstVE ui2)
 ioFromConstVE (OrVE ui1 ui2) = OrVE (ioFromConstVE ui1) (ioFromConstVE ui2)
@@ -122,6 +141,7 @@ ioFromConstVE (DefaultVE a ui) = DefaultVE a (ioFromConstVE ui)
 
 snapshotVE :: e -> VE (IOE e) a -> IO (VE ConstE a)
 snapshotVE e Entry = return Entry
+snapshotVE e NullVE = return NullVE
 snapshotVE e (Label s ui) = snapshotVE e ui >>= return.Label s
 snapshotVE e (AndVE ui1 ui2) = do
     ui1' <- snapshotVE e ui1

@@ -55,6 +55,7 @@ uiGTK (EnumVE ss) = gtkEnumVE ss
 uiGTK (ListVE toString ui) = gtkListVE toString (uiGTK ui)
 uiGTK (AndVE uia uib) = gtkAndVE uia uib
 uiGTK (OrVE uia uib) = gtkOrVE uia uib
+uiGTK NullVE = gtkNull
 
 gtkAndVE :: (VEE e a) -> (VEE e b) -> VEGTK e (a,b)
 gtkAndVE uia uib = VEGTK "" $ \ctx -> do
@@ -125,6 +126,20 @@ gtkMapVE fab fba (VEGTK label uia) = VEGTK label mkui
          
 
 invalidEntryBackground = Color 65535 50000 50000
+
+gtkNull :: VEGTK e ()
+gtkNull = VEGTK "" $ \cts -> do
+    l <- labelNew Nothing
+    return GTKWidget {
+        ui_widget = toWidget l,
+        ui_set = \v -> return (),
+        ui_get = return (eVal ()),
+        ui_reset = return (),
+        ui_refreshEnv = const (return ()),
+        ui_packWide = False,
+        ui_tableXAttach = [],
+        ui_tableYAttach = []
+        } 
 
 gtkEntry :: (String -> ErrVal a) -> (a -> String) -> VEGTK e a
 gtkEntry fromString toString = VEGTK "" $ \ctx -> do
