@@ -16,6 +16,7 @@ import qualified Examples.Example2 as Ex2
 import qualified Examples.Example3 as Ex3
 import qualified Examples.Example4 as Ex4
 import qualified Examples.Example5 as Ex5
+import qualified Examples.Example6 as Ex6
 
 
 test = do
@@ -58,6 +59,7 @@ test = do
     addConstTest "Example 3" (mkVE :: VE ConstE Ex3.Team)
     addConstTest "Example 4" (mkVE :: VE ConstE Ex4.Expr)
     addEnvTest "Example 5" "/tmp" Ex5.envStructVE
+    addConstTest "Example 6" (mkVE :: VE ConstE Ex6.Variant)
        
     set window [ containerChild := vbox ]
     widgetShowAll window
