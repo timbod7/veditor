@@ -31,7 +31,7 @@ mkJSON :: VE ConstE a -> VEJSON a
 mkJSON Entry = jsonEntry
 mkJSON NullVE = jsonNull
 mkJSON (Label label ui) = (mkJSON ui){uj_label=Text.pack label}
-mkJSON (MapVE (BiMap fab fba) ui) = jsonMapVE fab fba (mkJSON ui)
+mkJSON (MapVE fab fba ui) = jsonMapVE fab fba (mkJSON ui)
 mkJSON (DefaultVE a ui) = (mkJSON ui){uj_default=Just a}
 mkJSON (EnumVE (ConstE ss)) = jsonEnumVE ss
 mkJSON (ListVE _ ui) = jsonListVE (mkJSON ui)
@@ -42,7 +42,7 @@ mkJSON (OrVE uia uib) = jsonOrVE uia uib
 -- which don't already have them
 addLabels :: VE ConstE a -> VE ConstE a
 addLabels (Label label ui) = Label label (addLabels ui)
-addLabels (MapVE bm ui) = MapVE bm (addLabels ui)
+addLabels (MapVE fab fba ui) = MapVE fab fba (addLabels ui)
 addLabels (DefaultVE a ui) = DefaultVE a (addLabels ui)
 addLabels (ListVE sf ui) = ListVE sf (addLabels ui)
 addLabels ui@(AndVE uia uib) = fst (addAndLabels ui 0)

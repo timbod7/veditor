@@ -48,8 +48,8 @@ type VEE e a = VE (IOE e) a
 uiGTK  :: VE (IOE e) a -> VEGTK e a
 uiGTK Entry = gtkEntry pure id
 uiGTK (Label label ui) = gtkLabel label (uiGTK ui)
-uiGTK (MapVE (BiMap fab fba) Entry) = gtkEntry fab fba
-uiGTK (MapVE (BiMap fab fba) ui) = gtkMapVE fab fba (uiGTK ui)
+uiGTK (MapVE fab fba Entry) = gtkEntry fab fba
+uiGTK (MapVE fab fba ui) = gtkMapVE fab fba (uiGTK ui)
 uiGTK (DefaultVE a ui) = gtkDefaultVE a (uiGTK ui)
 uiGTK (EnumVE ss) = gtkEnumVE ss
 uiGTK (ListVE toString ui) = gtkListVE toString (uiGTK ui)

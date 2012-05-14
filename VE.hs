@@ -4,13 +4,6 @@ module VE where
 
 import ErrVal
 
--- | A mapping between two types, where the "forward" direction
--- can fail with an error
-data BiMap a b = BiMap {
-    m_aeb :: a -> ErrVal b,
-    m_ba :: b -> a
-}
-
 -- | A GADT describing abstracted, composable user interfaces for manipulating
 -- a value of type a. e is a type constructor specifing how VE specific values
 -- may be possibly obtained from an environment.
@@ -40,7 +33,7 @@ data VE e a where
 
     -- | Convert a VE over a type a, to a VE over a type b, given
     -- the necessary mapping
-    MapVE :: BiMap a b -> VE e a -> VE e b
+    MapVE :: (a -> ErrVal b) -> (b -> a) -> VE e a -> VE e b
 
     -- | Annotate a VE with a default value
     DefaultVE :: a -> VE e a -> VE e a
@@ -50,7 +43,7 @@ newtype IOE e a = IOE (e -> IO a)
 
 -- | A VE for any type implemented Read and Show.
 readVE :: (Read a, Show a) => String -> VE e a
-readVE typestr = MapVE (BiMap fromString show) Entry 
+readVE typestr = MapVE fromString show Entry 
   where
     fromString s = case reads s of
         [(a,"")] -> eVal a
@@ -58,7 +51,7 @@ readVE typestr = MapVE (BiMap fromString show) Entry
 
 -- | A VE for an optional value of any type implemented Read and Show.
 maybeReadVE :: (Read a, Show a) => String -> VE e (Maybe a)
-maybeReadVE typestr = MapVE (BiMap fromString toString) Entry 
+maybeReadVE typestr = MapVE fromString toString Entry 
   where
     fromString "" = eVal Nothing
     fromString s = case reads s of
@@ -72,7 +65,7 @@ intVE :: VE e Int
 intVE = readVE "Int"
 
 boolVE :: VE ConstE Bool
-boolVE = MapVE (BiMap (eVal.toEnum) fromEnum) (EnumVE (ConstE ["False","True"]))
+boolVE = MapVE (eVal.toEnum) fromEnum (EnumVE (ConstE ["False","True"]))
 
 x :: VE ConstE Int
 x = EnumVE (ConstE ["False","True"])
@@ -84,7 +77,7 @@ infixr 5 .*.
 infixr 5 .+.
 
 mapVE :: (a -> ErrVal b) -> (b->a) -> VE e a -> VE e b
-mapVE aeb ba = MapVE (BiMap aeb ba)
+mapVE aeb ba = MapVE aeb ba
 
 label :: String -> VE e a -> VE e a
 label = Label
@@ -98,7 +91,7 @@ listVE = ListVE
 fieldVE :: (HasVE a) => String -> VE ConstE a
 fieldVE label = Label label mkVE
 
-maybeVE ve = MapVE (BiMap toMaybe fromMaybe) (ve .+. NullVE)
+maybeVE ve = MapVE toMaybe fromMaybe (ve .+. NullVE)
       where
         toMaybe (Left a) = eVal (Just a)
         toMaybe (Right ()) = eVal Nothing
@@ -136,7 +129,7 @@ ioFromConstVE (AndVE ui1 ui2) = AndVE (ioFromConstVE ui1) (ioFromConstVE ui2)
 ioFromConstVE (OrVE ui1 ui2) = OrVE (ioFromConstVE ui1) (ioFromConstVE ui2)
 ioFromConstVE (EnumVE (ConstE ss)) = EnumVE (IOE (\e -> return ss))
 ioFromConstVE (ListVE sf ui) = ListVE sf (ioFromConstVE ui)
-ioFromConstVE (MapVE bm ui) = MapVE bm (ioFromConstVE ui)
+ioFromConstVE (MapVE fab fba ui) = MapVE fab fba (ioFromConstVE ui)
 ioFromConstVE (DefaultVE a ui) = DefaultVE a (ioFromConstVE ui)
 
 snapshotVE :: e -> VE (IOE e) a -> IO (VE ConstE a)
@@ -153,6 +146,6 @@ snapshotVE e (OrVE ui1 ui2) = do
     return (OrVE ui1' ui2')
 snapshotVE e (EnumVE ioe) = ioeGet ioe e >>= return.EnumVE
 snapshotVE e (ListVE sf ui) = snapshotVE e ui >>= return.ListVE sf
-snapshotVE e (MapVE bm ui) = snapshotVE e ui >>= return.MapVE bm
+snapshotVE e (MapVE fab fba ui) = snapshotVE e ui >>= return.MapVE fab fba
 snapshotVE e (DefaultVE a ui) = snapshotVE e ui >>= return.DefaultVE a
 
