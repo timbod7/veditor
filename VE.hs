@@ -52,18 +52,6 @@ readVE typestr = MapVE fromString show Entry
         [(a,"")] -> eVal a
         _ -> eErr ("Not a valid "++typestr)
 
--- | A VE for an optional value of any type implemented Read and Show.
-maybeReadVE :: (Read a, Show a) => String -> VE e (Maybe a)
-maybeReadVE typestr = MapVE fromString toString Entry 
-  where
-    fromString "" = eVal Nothing
-    fromString s = case reads s of
-        [(a,"")] -> eVal (Just a)
-        _ -> eErr ("Not a valid "++typestr)
-
-    toString Nothing = ""
-    toString (Just a) = show a
-
 intVE :: VE e Int
 intVE = readVE "Int"
 
