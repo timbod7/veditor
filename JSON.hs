@@ -37,6 +37,7 @@ mkJSON (EnumVE (ConstE ss)) = jsonEnumVE ss
 mkJSON (ListVE _ ui) = jsonListVE (mkJSON ui)
 mkJSON (AndVE uia uib) = jsonAndVE uia uib
 mkJSON (OrVE uia uib) = jsonOrVE uia uib
+mkJSON (MaybeVE ui) = jsonMaybeVE ui
 
 -- | Recursively add numeric labels to and/or branches
 -- which don't already have them
@@ -45,6 +46,7 @@ addLabels (Label label ui) = Label label (addLabels ui)
 addLabels (MapVE fab fba ui) = MapVE fab fba (addLabels ui)
 addLabels (DefaultVE a ui) = DefaultVE a (addLabels ui)
 addLabels (ListVE sf ui) = ListVE sf (addLabels ui)
+addLabels (MaybeVE ui) = MaybeVE (addLabels ui)
 addLabels ui@(AndVE uia uib) = fst (addAndLabels ui 0)
 addLabels ui@(OrVE uia uib) = fst (addOrLabels ui 0)
 addLabels ui = ui
@@ -187,6 +189,8 @@ jsonEnumVE ss = VEJSON {
         Nothing -> eErr ("Illegal enumeration label " ++ Text.unpack t)
         (Just i) -> eVal i
     fromjson _ = eErr "Non string json value found"
+
+jsonMaybeVE  ui = mkJSON (maybeVE_ ui)
 
 
 jsonFromString :: String -> Either String DA.Value

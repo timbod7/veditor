@@ -55,6 +55,8 @@ uiGTK (EnumVE ss) = gtkEnumVE ss
 uiGTK (ListVE toString ui) = gtkListVE toString (uiGTK ui)
 uiGTK (AndVE uia uib) = gtkAndVE uia uib
 uiGTK (OrVE uia uib) = gtkOrVE uia uib
+uiGTK (MaybeVE (MapVE fab fba Entry)) = gtkMaybeMapEntry fab fba
+uiGTK (MaybeVE ui) = uiGTK (maybeVE_ ui)
 uiGTK NullVE = gtkNull
 
 gtkAndVE :: (VEE e a) -> (VEE e b) -> VEGTK e (a,b)
@@ -424,6 +426,18 @@ gtkDefaultVE a ui = VEGTK (ui_label ui) $ \ctx -> do
     ui_set gw a
     return gw{ui_reset=ui_reset gw >> ui_set gw a}
 
+-- If we have a MaybeVE (MapVE ... Entry) then we 
+-- can just use a single entry field provided that an
+-- empty string can be used for the Nothing case.
+gtkMaybeMapEntry :: (String -> ErrVal a) -> (a -> String) -> VEGTK e (Maybe a)
+gtkMaybeMapEntry fsa fas = case fsa "" of
+    (Error _ _) -> gtkEntry fsma fmas
+    _ -> uiGTK (maybeVE_ (MapVE fsa fas Entry))
+  where
+    fsma "" = eVal Nothing
+    fsma s = fmap Just (fsa s)
+    fmas Nothing = ""
+    fmas (Just a) = fas a
 
 -- uiNew :: (VE GTK a) -> IO (GTKWidget a)
 -- uiNew (VEGTK _ uia) = uia (GTKCTX CS_NORMAL (return ()))

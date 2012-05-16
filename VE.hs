@@ -31,6 +31,9 @@ data VE e a where
     -- the VE display the list items to the user (eg for selection).
     ListVE :: (a->String) -> VE e a -> VE e [a]
 
+    -- | A VE representing an optional value.
+    MaybeVE :: VE e a -> VE e (Maybe a)
+
     -- | Convert a VE over a type a, to a VE over a type b, given
     -- the necessary mapping
     MapVE :: (a -> ErrVal b) -> (b -> a) -> VE e a -> VE e b
@@ -91,14 +94,6 @@ listVE = ListVE
 fieldVE :: (HasVE a) => String -> VE ConstE a
 fieldVE label = Label label mkVE
 
-maybeVE ve = MapVE toMaybe fromMaybe (ve .+. NullVE)
-      where
-        toMaybe (Left a) = eVal (Just a)
-        toMaybe (Right ()) = eVal Nothing
-
-        fromMaybe (Just a) = Left a
-        fromMaybe Nothing = Right ()
-
 class HasVE a where
   mkVE :: VE ConstE a
 
@@ -116,7 +111,7 @@ instance HasVE Bool where
 
 instance (HasVE a) => HasVE (Maybe a)
   where
-    mkVE = maybeVE mkVE
+    mkVE = MaybeVE mkVE
 
 ioeGet :: IOE e a -> e -> IO (ConstE a)
 ioeGet (IOE fa) e = fa e >>= return.ConstE
@@ -131,6 +126,7 @@ ioFromConstVE (EnumVE (ConstE ss)) = EnumVE (IOE (\e -> return ss))
 ioFromConstVE (ListVE sf ui) = ListVE sf (ioFromConstVE ui)
 ioFromConstVE (MapVE fab fba ui) = MapVE fab fba (ioFromConstVE ui)
 ioFromConstVE (DefaultVE a ui) = DefaultVE a (ioFromConstVE ui)
+ioFromConstVE (MaybeVE ui) = MaybeVE (ioFromConstVE ui)
 
 snapshotVE :: e -> VE (IOE e) a -> IO (VE ConstE a)
 snapshotVE e Entry = return Entry
@@ -149,3 +145,16 @@ snapshotVE e (ListVE sf ui) = snapshotVE e ui >>= return.ListVE sf
 snapshotVE e (MapVE fab fba ui) = snapshotVE e ui >>= return.MapVE fab fba
 snapshotVE e (DefaultVE a ui) = snapshotVE e ui >>= return.DefaultVE a
 
+-- A helper to build a maybe in terms of a sum definition. Useful in
+-- the implementations of MaybeVE in concrete VE implemenations.
+maybeVE_ :: VE e a -> VE e (Maybe a)
+maybeVE_ ve = MapVE toMaybe fromMaybe
+    (   label "Just" ve
+    .+. label "Nothing" NullVE
+    )
+  where
+    toMaybe (Left a) = eVal (Just a)
+    toMaybe (Right ()) = eVal Nothing
+
+    fromMaybe (Just a) = Left a
+    fromMaybe Nothing = Right ()
