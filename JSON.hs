@@ -133,6 +133,7 @@ jsonAndVE uia uib = VEJSON {
                  Nothing -> eErr ("field " ++ Text.unpack (uj_label uj) ++ " missing")
                  (Just v) -> eVal v
 
+jsonOrVE :: VE ConstE a -> VE ConstE b -> VEJSON (Either a b)
 jsonOrVE uia uib = VEJSON {
     uj_label= Text.empty,
     uj_default=Nothing,
@@ -190,6 +191,7 @@ jsonEnumVE ss = VEJSON {
         (Just i) -> eVal i
     fromjson _ = eErr "Non string json value found"
 
+jsonMaybeVE :: VE ConstE a -> VEJSON (Maybe a)
 jsonMaybeVE  ui = mkJSON (maybeVE_ ui)
 
 

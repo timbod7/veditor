@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,TypeSynonymInstances #-}
+{-# LANGUAGE GADTs,TypeSynonymInstances,FlexibleInstances #-}
 
 module VE where
 
