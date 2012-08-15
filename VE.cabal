@@ -10,7 +10,7 @@ Cabal-Version: >= 1.6
 Build-Type: Simple
 
 library
-  Build-depends: base == 4.*, containers, gtk, aeson, vector, unordered-containers, text, bytestring, filepath, directory, unix, attoparsec
+  Build-depends: base == 4.*, containers, gtk >= 0.12.3, aeson, vector, unordered-containers, text, bytestring, filepath, directory, unix, attoparsec
 
   Exposed-modules:
         VE,
