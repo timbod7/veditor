@@ -2,7 +2,7 @@ module Examples.Example3 where
 
 import Examples.Example2(Person(..))
 import Examples.Utils(testC)
-import VE
+import Graphics.UI.VE
 import ErrVal
 
 

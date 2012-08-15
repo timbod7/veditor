@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs,TypeSynonymInstances,FlexibleInstances #-}
 
-module VE where
+module Graphics.UI.VE where
 
 import ErrVal
 

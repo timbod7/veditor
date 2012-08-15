@@ -14,9 +14,9 @@ import qualified Data.Text.Lazy as Text
 import Data.List
 import Control.Monad
 
-import VE
-import GTK
-import JSON
+import Graphics.UI.VE
+import Graphics.UI.VE.GTK
+import Graphics.UI.VE.JSON
 import ErrVal
 
 testC :: VE ConstE a -> IO ()

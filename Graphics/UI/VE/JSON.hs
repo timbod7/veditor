@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module JSON(
+module Graphics.UI.VE.JSON(
     VEJSON(..),
     uiJSON,
     jsonFromString
@@ -8,7 +8,7 @@ module JSON(
 
 import Control.Applicative
 
-import VE
+import Graphics.UI.VE
 import ErrVal
 import qualified Data.Aeson as DA
 import qualified Data.Vector as DV

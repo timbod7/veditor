@@ -1,6 +1,7 @@
 module Examples.Example7 where
 
-import VE
+import Graphics.UI.VE
+
 import ErrVal
 import Examples.Utils(testC)
 import Examples.Example2(Person(..))

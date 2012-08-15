@@ -5,7 +5,8 @@ import System.Directory
 import System.Posix
 import Control.Monad
 
-import VE
+import Graphics.UI.VE
+
 import ErrVal
 import Examples.Utils(testE)
 

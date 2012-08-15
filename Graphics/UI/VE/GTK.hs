@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module GTK(
+module Graphics.UI.VE.GTK(
     GTKWidget(..),
     VEGTK(..),
     GTKCTX(..),
@@ -18,7 +18,7 @@ import Data.IORef
 import Data.Char
 import qualified Data.Map as Map
 
-import VE
+import Graphics.UI.VE
 import DelayIO
 import ErrVal
 

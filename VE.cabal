@@ -13,6 +13,6 @@ library
   Build-depends: base == 4.*, containers, gtk >= 0.12.3, aeson, vector, unordered-containers, text, bytestring, filepath, directory, unix, attoparsec
 
   Exposed-modules:
-        VE,
-        GTK,
-        JSON
+        Graphics.UI.VE,
+        Graphics.UI.VE.GTK,
+        Graphics.UI.VE.JSON

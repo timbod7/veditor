@@ -6,9 +6,9 @@ import qualified Data.Aeson.Encode as DA
 import qualified Data.Attoparsec.Text as DA
 import qualified Data.ByteString.Lazy as L
 
-import VE
-import GTK
-import JSON
+import Graphics.UI.VE
+import Graphics.UI.VE.GTK
+import Graphics.UI.VE.JSON
 import ErrVal
 
 import qualified Examples.Example1 as Ex1

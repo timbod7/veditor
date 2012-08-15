@@ -2,7 +2,7 @@ module Examples.Example6 where
 
 import Examples.Utils(testC)
 
-import VE
+import Graphics.UI.VE
 import ErrVal
 
 data Variant = VString String

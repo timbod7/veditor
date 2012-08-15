@@ -2,7 +2,7 @@ module Examples.Example4 where
 
 import Examples.Utils(testC)
 
-import VE
+import Graphics.UI.VE
 import ErrVal
 
 data Expr = Literal Double
