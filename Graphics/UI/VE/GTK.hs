@@ -17,6 +17,7 @@ import Control.Applicative
 import Data.IORef
 import Data.Char
 import qualified Data.Map as Map
+import qualified Data.Text as T
 
 import Graphics.UI.VE
 import DelayIO
@@ -131,7 +132,7 @@ invalidEntryBackground = Color 65535 50000 50000
 
 gtkNull :: VEGTK e ()
 gtkNull = VEGTK "" $ \cts -> do
-    l <- labelNew Nothing
+    l <- labelNew (Nothing :: Maybe String)
     return GTKWidget {
         ui_widget = toWidget l,
         ui_set = \v -> return (),
@@ -266,7 +267,7 @@ gtkOrVE uia uib = VEGTK "" $ \ctx -> do
     addChoices us ctx aui  = do
         let ui = uiGTK aui
 
-        comboBoxAppendText (us_combo us) (ui_label ui)
+        comboBoxAppendText (us_combo us) (T.pack (ui_label ui))
 
         i <- readIORef (us_i us)
         modifyIORef (us_i us) (+1)
@@ -397,13 +398,13 @@ gtkEnumVE (IOE labelsf) = VEGTK "" $ \ctx -> do
 
     let setLabels ls = do
           comboBoxGetModelText combo >>= listStoreClear
-          comboBoxAppendText combo " -select- "
+          comboBoxAppendText combo (T.pack " -select- ")
           forM_ ls $ \label -> comboBoxAppendText combo label
           comboBoxSetActive combo 0
 
     initialLabels <- labelsf (cs_initialEnv ctx)
 
-    setLabels initialLabels
+    setLabels (map T.pack initialLabels)
 
     return GTKWidget {
           ui_widget = toWidget align,
@@ -414,7 +415,10 @@ gtkEnumVE (IOE labelsf) = VEGTK "" $ \ctx -> do
                         else return (eVal (i-1))
               ,
           ui_reset = comboBoxSetActive combo 0,
-          ui_refreshEnv= \e -> labelsf e >>= setLabels,
+          ui_refreshEnv= \e -> do
+            ls <- labelsf e
+            setLabels (map T.pack ls)
+            ,
           ui_packWide = False,
           ui_tableXAttach = [Expand,Shrink,Fill],
           ui_tableYAttach = []

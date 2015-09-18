@@ -4,7 +4,7 @@ import Graphics.UI.Gtk
 import qualified Data.Aeson as DA
 import qualified Data.Aeson.Encode as DA
 import qualified Data.Attoparsec.Text as DA
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy.Char8 as L
 
 import Graphics.UI.VE
 import Graphics.UI.VE.GTK
@@ -19,7 +19,7 @@ import qualified Examples.Example5 as Ex5
 import qualified Examples.Example6 as Ex6
 
 
-test = do
+main = do
     initGUI
     window <- windowNew
     onDestroy window mainQuit

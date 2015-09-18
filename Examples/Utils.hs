@@ -7,7 +7,7 @@ import Graphics.UI.Gtk
 import qualified Data.Aeson as DA
 import qualified Data.Aeson.Encode as DA
 import qualified Data.Attoparsec.Text as DA
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text.Lazy.Builder as Text
 import qualified Data.Text.Lazy as Text
 
@@ -65,7 +65,7 @@ test0 label uig uijson = do
         case ev of
             (Error emsg context) -> putStrLn (errorMessage emsg context)
             (EValue v) -> do
-                let s = Text.unpack (Text.toLazyText (DA.fromValue (uj_tojson uijson v)))
+                let s = Text.unpack (Text.toLazyText (DA.encodeToTextBuilder (uj_tojson uijson v)))
                 clipboardSetText cb s
 
     mkButton hbox "Get" $ do
