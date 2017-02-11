@@ -1,5 +1,9 @@
 flags: {}
 packages:
 - '.'
-extra-deps: []
-resolver: lts-3.4
+extra-deps:
+  - gtk-0.14.6
+flags:
+  gtk:
+    have-quartz-gtk: true
+resolver: lts-7.13
